@@ -2407,6 +2407,8 @@ namespace NesLifter.Studio
             sb.AppendLine("public static byte Joy2Latch;");
             sb.AppendLine("public static int Joy1Idx;");
             sb.AppendLine("public static int Joy2Idx;");
+            sb.AppendLine("public static long ClockStart = System.Diagnostics.Stopwatch.GetTimestamp();");
+            sb.AppendLine("public static volatile bool ThrottleEnabled = true;");
             sb.AppendLine();
 
             sb.AppendLine("public static void Init()");
@@ -2558,9 +2560,26 @@ namespace NesLifter.Studio
             sb.AppendLine("public static void JoyStrobe(byte v) { if ((v & 1) != 0) { Joy1Latch = Joy1Buttons; Joy2Latch = Joy2Buttons; Joy1Idx = 0; Joy2Idx = 0; } }");
             sb.AppendLine("public static byte JoyRead1() { int i = Joy1Idx; Joy1Idx = i + 1; if (i < 8) return (byte)((Joy1Latch >> i) & 1); return 0; }");
             sb.AppendLine("public static byte JoyRead2() { int i = Joy2Idx; Joy2Idx = i + 1; if (i < 8) return (byte)((Joy2Latch >> i) & 1); return 0; }");
+            sb.AppendLine("public static void Throttle()");
+            sb.AppendLine("{");
+            sb.AppendLine("    if (!ThrottleEnabled) return;");
+            sb.AppendLine("    long freq = System.Diagnostics.Stopwatch.Frequency;");
+            sb.AppendLine("    long now = System.Diagnostics.Stopwatch.GetTimestamp();");
+            sb.AppendLine("    long ahead = InsCount - (now - ClockStart) * 1789773L / freq;");
+            sb.AppendLine("    if (ahead < -59659) { ClockStart = System.Diagnostics.Stopwatch.GetTimestamp(); return; }");
+            sb.AppendLine("    if (ahead <= 29829) return;");
+            sb.AppendLine("    for (int k = 0; k < 4; k++)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        Thread.Sleep(1);");
+            sb.AppendLine("        long n2 = System.Diagnostics.Stopwatch.GetTimestamp();");
+            sb.AppendLine("        if (InsCount - (n2 - ClockStart) * 1789773L / freq <= 29829) return;");
+            sb.AppendLine("    }");
+            sb.AppendLine("    ClockStart = System.Diagnostics.Stopwatch.GetTimestamp();");
+            sb.AppendLine("}");
             sb.AppendLine();
             sb.AppendLine("public static bool CheckNmi(ushort pc)");
             sb.AppendLine("{");
+            sb.AppendLine("    if ((InsCount & 511) == 0) Throttle();");
             sb.AppendLine("    if (!NmiPending || InNmi || (Ppu.Ctrl & 0x80) == 0)");
             sb.AppendLine("    {");
             sb.AppendLine("        if ((Ppu.Ctrl & 0x80) == 0) NmiPending = false;");
