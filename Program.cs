@@ -3470,7 +3470,7 @@ namespace NesLifter.Studio
             sb.AppendLine("    [DllImport(\"winmm.dll\")] static extern int waveOutClose(IntPtr h);");
             sb.AppendLine();
             sb.AppendLine("    const int SR = 22050;");
-            sb.AppendLine("    const int BLOCK = 1024;");
+            sb.AppendLine("    const int BLOCK = 2048;");
             sb.AppendLine("    static IntPtr _hwo;");
             sb.AppendLine("    static bool _open;");
             sb.AppendLine("    static Thread _thread;");
@@ -3511,7 +3511,7 @@ namespace NesLifter.Studio
             sb.AppendLine("            _run = true;");
             sb.AppendLine("            _thread = new Thread(new ThreadStart(ThreadProc));");
             sb.AppendLine("            _thread.IsBackground = true;");
-            sb.AppendLine("            _thread.Priority = ThreadPriority.Lowest;");
+            sb.AppendLine("            _thread.Priority = ThreadPriority.Normal;");
             sb.AppendLine("            _thread.Start();");
             sb.AppendLine("        }");
             sb.AppendLine("        catch { _open = false; }");
@@ -3542,7 +3542,7 @@ namespace NesLifter.Studio
             sb.AppendLine("        {");
             sb.AppendLine("            try");
             sb.AppendLine("            {");
-            sb.AppendLine("                if (_queued[idx]) { int w = 0; while (_run && (_hdr[idx].dwFlags & 1) == 0) { Thread.Sleep(1); if (++w > 300) break; } }");
+            sb.AppendLine("                if (_queued[idx]) { int w = 0; while (_run && (_hdr[idx].dwFlags & 1) == 0) { Thread.Sleep(1); if (++w > 1000) break; } }");
             sb.AppendLine("                Fill(_buf[idx]);");
             sb.AppendLine("                waveOutWrite(_hwo, ref _hdr[idx], hdrSize);");
             sb.AppendLine("                _queued[idx] = true;");
