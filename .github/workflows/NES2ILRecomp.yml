@@ -33,4 +33,4 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: NES2ILRecomp-Release
-        path: D:/a/ExpoKit/NES2ILRecomp/bin/Release/net48/NES2ILRecomp.exe
+        path: D:/a/NES2ILRecomp/NES2ILRecomp/bin/Release/net48/NES2ILRecomp.exe
