@@ -15,7 +15,7 @@ using Microsoft.CSharp;
 using System.Xml.Serialization;
 using System.Globalization;
 
-namespace NesLifter.Studio
+namespace NES2ILRecomp
 {
     static class Program
     {
@@ -37,7 +37,7 @@ namespace NesLifter.Studio
             SetupLogging(opts);
 
             foreach (string u in opts.UnknownArgs)
-                Log.Warn("Неизвестный аргумент: " + u);
+                Log.Warn("Unknown argument: " + u);
 
             AppDomain.CurrentDomain.UnhandledException += delegate (object sender, UnhandledExceptionEventArgs e)
             {
@@ -47,7 +47,7 @@ namespace NesLifter.Studio
 
             Console.CancelKeyPress += delegate (object sender, ConsoleCancelEventArgs e)
             {
-                Log.Warn("Получен Ctrl+C/Ctrl+Break. Сохраняю состояние...");
+                Log.Warn("Ctrl+C/Ctrl+Break received. Saving state...");
                 if (_state != null) _state.Save();
                 e.Cancel = false;
             };
@@ -57,8 +57,8 @@ namespace NesLifter.Studio
                 if (_tray != null) _tray.SetStatus(s);
             };
 
-            Log.Info("NES Static Recompiler запущен.");
-            Log.Info("Выходной каталог: " + opts.OutputPath);
+            Log.Info("NES Static Recompiler started.");
+            Log.Info("Output directory: " + opts.OutputPath);
 
             _state = new StateManager(opts);
             _state.Load();
@@ -92,7 +92,7 @@ namespace NesLifter.Studio
             }
             catch (Exception ex)
             {
-                Log.Error("Фатальная ошибка: " + ex.Message);
+                Log.Error("Fatal error: " + ex.Message);
                 Log.Debug(ex.ToString());
                 exitCode = 1;
             }
@@ -108,7 +108,7 @@ namespace NesLifter.Studio
                 {
                     if (opts.WaitAfter)
                     {
-                        Log.Info("Работа завершена. Приложение осталось в трее. Выход через меню трея.");
+                        Log.Info("Done. Application remains in tray. Exit via tray menu.");
                         _tray.WaitForExit();
                     }
                     else
@@ -118,7 +118,7 @@ namespace NesLifter.Studio
                 }
                 else if (opts.WaitAfter)
                 {
-                    Console.WriteLine("Нажмите любую клавишу для выхода...");
+                    Console.WriteLine("Press any key to exit...");
                     try { Console.ReadKey(true); } catch { }
                 }
             }
@@ -134,10 +134,10 @@ namespace NesLifter.Studio
         static bool Interactive(Options opts)
         {
             string[] items = new string[4];
-            items[0] = "Указать путь к ROM или папке (сейчас: <нет>)";
-            items[1] = "Рекурсивная обработка папок: выкл";
-            items[2] = "Запустить рекомпиляцию";
-            items[3] = "Выход";
+            items[0] = "Specify ROM or folder path (current: <none>)";
+            items[1] = "Recursive folder processing: off";
+            items[2] = "Start recompilation";
+            items[3] = "Exit";
 
             while (true)
             {
@@ -154,20 +154,20 @@ namespace NesLifter.Studio
                     if (!string.IsNullOrEmpty(p))
                     {
                         opts.InputPath = p;
-                        items[0] = "Указать путь (сейчас: " + p + ")";
+                        items[0] = "Specify path (current: " + p + ")";
                     }
                 }
                 else if (sel == 1)
                 {
                     opts.Recursive = !opts.Recursive;
-                    items[1] = "Рекурсивная обработка папок: " + (opts.Recursive ? "вкл" : "выкл");
+                    items[1] = "Recursive folder processing: " + (opts.Recursive ? "on" : "off");
                 }
                 else if (sel == 2)
                 {
                     if (!string.IsNullOrEmpty(opts.InputPath))
                         return true;
 
-                    Log.Warn("Сначала укажите путь к ROM или папке.");
+                    Log.Warn("Please specify a ROM or folder path first.");
                 }
                 else if (sel == 3)
                 {
@@ -198,9 +198,9 @@ namespace NesLifter.Studio
             Trace.AutoFlush = true;
 
             if (logFile == null)
-                Log.Warn("Не удалось создать файл лога. Лог будет только в консоли.");
+                Log.Warn("Failed to create log file. Logging to console only.");
             else
-                Log.Info("Файл лога: " + logFile);
+                Log.Info("Log file: " + logFile);
         }
     }
 
@@ -508,34 +508,34 @@ namespace NesLifter.Studio
             Console.WriteLine("NES Static Recompiler / Lifter to .NET Assembly");
             Console.WriteLine("================================================");
             Console.WriteLine();
-            Console.WriteLine("Использование:");
-            Console.WriteLine("  NesLifter.exe --input <rom.nes|папка> --output <папка> [опции]");
+            Console.WriteLine("Usage:");
+            Console.WriteLine("  NesLifter.exe --input <rom.nes|folder> --output <dir> [options]");
             Console.WriteLine();
-            Console.WriteLine("Опции:");
-            Console.WriteLine("  -i, --input <path>      Входной .nes файл или папка с ROM'ами.");
-            Console.WriteLine("  -o, --output <dir>      Выходной каталог. По умолчанию: nes_lifted_output");
-            Console.WriteLine("  -r, --recursive         Рекурсивная обработка папок.");
-            Console.WriteLine("      --no-tray           Не создавать иконку в трее.");
-            Console.WriteLine("      --wait              После завершения остаться в трее/ожидании.");
-            Console.WriteLine("      --fresh             Игнорировать сохраненное состояние.");
-            Console.WriteLine("      --no-compile        Только сгенерировать C#, не компилировать EXE.");
-            Console.WriteLine("      --no-source         Не сохранять промежуточный C# (не рекомендуется).");
-            Console.WriteLine("      --keep-source       Сохранять промежуточный C# (по умолчанию).");
-            Console.WriteLine("      --checkpoint <min>  Интервал автосохранения состояния, мин. По умолчанию 10.");
-            Console.WriteLine("  -h, --help              Эта справка.");
+            Console.WriteLine("Options:");
+            Console.WriteLine("  -i, --input <path>      Input .nes file or folder with ROMs.");
+            Console.WriteLine("  -o, --output <dir>      Output directory. Default: nes_lifted_output");
+            Console.WriteLine("  -r, --recursive         Recursive folder processing.");
+            Console.WriteLine("      --no-tray           Do not create tray icon.");
+            Console.WriteLine("      --wait              Stay in tray/wait after completion.");
+            Console.WriteLine("      --fresh             Ignore saved state (start from scratch).");
+            Console.WriteLine("      --no-compile        Only generate C#, skip EXE compilation.");
+            Console.WriteLine("      --no-source         Do not save intermediate C# (not recommended).");
+            Console.WriteLine("      --keep-source       Save intermediate C# (default).");
+            Console.WriteLine("      --checkpoint <min>  Auto-save interval in minutes. Default: 10.");
+            Console.WriteLine("  -h, --help              This help.");
             Console.WriteLine();
-            Console.WriteLine("Примеры:");
+            Console.WriteLine("Examples:");
             Console.WriteLine("  NesLifter.exe game.nes");
             Console.WriteLine("  NesLifter.exe --input C:\\roms --output C:\\lifted -r --wait");
             Console.WriteLine("  NesLifter.exe --input C:\\roms -r --no-compile --checkpoint 5");
             Console.WriteLine();
-            Console.WriteLine("Пайплайн:");
-            Console.WriteLine("  1. Парсинг iNES: PRG ROM, CHR ROM, mapper, mirroring.");
-            Console.WriteLine("  2. Дизассемблирование 6502, построение графа переходов.");
-            Console.WriteLine("  3. Лифтинг инструкций в C#-код.");
-            Console.WriteLine("  4. Dispatch-таблица для JMP indirect / RTS / RTI / BRK.");
-            Console.WriteLine("  5. Генерация Memory Bus, PPU/APU stub, WinForms-окна.");
-            Console.WriteLine("  6. Компиляция сгенерированного C# в Game.exe через CSharpCodeProvider.");
+			Console.WriteLine("Pipeline:");
+            Console.WriteLine("  1. Parse iNES: PRG ROM, CHR ROM, mapper, mirroring.");
+            Console.WriteLine("  2. Disassemble 6502, build control-flow graph.");
+            Console.WriteLine("  3. Lift instructions to C# code.");
+            Console.WriteLine("  4. Dispatch table for JMP indirect / RTS / RTI / BRK.");
+            Console.WriteLine("  5. Generate Memory Bus, PPU/APU stubs, WinForms window.");
+            Console.WriteLine("  6. Compile generated C# into Game.exe via CSharpCodeProvider.");
             Console.WriteLine();
         }
     }
@@ -560,7 +560,7 @@ namespace NesLifter.Studio
                     Console.Clear();
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.WriteLine(title);
-                    Console.WriteLine("Используйте стрелки и Enter. Esc - выход.");
+                    Console.WriteLine("Use arrows and Enter. Esc to exit.");
                     Console.ResetColor();
                     Console.WriteLine();
 
@@ -607,7 +607,7 @@ namespace NesLifter.Studio
 
         public static string AskPath()
         {
-            Console.Write("Введите путь: ");
+            Console.Write("Enter path: ");
             string s = Console.ReadLine();
             return s == null ? string.Empty : s.Trim();
         }
@@ -746,12 +746,12 @@ namespace NesLifter.Studio
             _notify.Text = "NES Lifter";
 
             ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Items.Add("Показать статус", null, delegate (object sender, EventArgs e)
+            menu.Items.Add("Show status", null, delegate (object sender, EventArgs e)
             {
                 Log.Info("Tray status: " + _notify.Text);
             });
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Выход", null, delegate (object sender, EventArgs e)
+            menu.Items.Add("Exit", null, delegate (object sender, EventArgs e)
             {
                 RequestExit();
             });
@@ -759,7 +759,7 @@ namespace NesLifter.Studio
             _notify.ContextMenuStrip = menu;
             _notify.DoubleClick += delegate (object sender, EventArgs e)
             {
-                Log.Info("NES Lifter в трее. Используйте контекстное меню.");
+                Log.Info("NES Lifter in tray. Use context menu.");
             };
             _notify.Visible = true;
         }
@@ -836,7 +836,7 @@ namespace NesLifter.Studio
                     if (File.Exists(_path))
                     {
                         File.Delete(_path);
-                        Log.Info("Состояние сброшено (--fresh).");
+                        Log.Info("State reset (--fresh).");
                     }
                     _state = new AppState();
                     return;
@@ -862,11 +862,11 @@ namespace NesLifter.Studio
                 if (_state == null) _state = new AppState();
                 if (_state.ProcessedFiles == null) _state.ProcessedFiles = new List<string>();
 
-                Log.Info("Загружено состояние. Уже обработано файлов: " + _state.ProcessedFiles.Count);
+                Log.Info("State loaded. Already processed files: " + _state.ProcessedFiles.Count);
             }
             catch (Exception ex)
             {
-                Log.Warn("Не удалось загрузить состояние: " + ex.Message);
+                Log.Warn("Failed to load state: " + ex.Message);
                 try
                 {
                     if (File.Exists(_path))
@@ -905,7 +905,7 @@ namespace NesLifter.Studio
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn("Не удалось сохранить состояние: " + ex.Message);
+                    Log.Warn("Failed to save state: " + ex.Message);
                 }
             }
         }
@@ -947,7 +947,7 @@ namespace NesLifter.Studio
             if (ms < 1000) ms = 1000;
 
             _timer = new System.Threading.Timer(new TimerCallback(OnTimer), null, ms, ms);
-            Log.Info("Чекпоинт состояния каждые " + _opts.CheckpointMinutes + " мин.");
+            Log.Info("State checkpoint every " + _opts.CheckpointMinutes + " min.");
         }
 
         public void StopTimer()
@@ -985,18 +985,18 @@ namespace NesLifter.Studio
 
         public int Run()
         {
-            Status.Set("Инициализация");
+            Status.Set("Initializing");
             EnsureOutput();
             EnsureConfig();
 
             List<string> files = CollectFiles();
             if (files.Count == 0)
             {
-                Log.Warn("Не найдено входных .nes файлов.");
+                Log.Warn("No input .nes files found.");
                 return 1;
             }
 
-            Log.Info("Найдено файлов: " + files.Count);
+            Log.Info("Files found: " + files.Count);
 
             int ok = 0;
             int failed = 0;
@@ -1010,12 +1010,12 @@ namespace NesLifter.Studio
                 if (_state.IsProcessed(full))
                 {
                     skipped++;
-                    Log.Info("Пропуск уже обработанного: " + file);
+                    Log.Info("Skipping already processed: " + file);
                     ConsoleUI.Progress(Path.GetFileName(file), i + 1, files.Count);
                     continue;
                 }
 
-                Status.Set("Обработка " + Path.GetFileName(file));
+                Status.Set("Processing " + Path.GetFileName(file));
                 _state.SetLastFile(full);
                 ConsoleUI.Progress(Path.GetFileName(file), i, files.Count);
 
@@ -1034,8 +1034,8 @@ namespace NesLifter.Studio
             }
 
             ConsoleUI.ProgressDone();
-            Status.Set("Готово");
-            Log.Info(string.Format("Итог: успешно={0}, ошибок={1}, пропущено={2}", ok, failed, skipped));
+            Status.Set("Done");
+            Log.Info(string.Format("Summary: ok={0}, failed={1}, skipped={2}", ok, failed, skipped));
 
             return failed == 0 ? 0 : 2;
         }
@@ -1060,12 +1060,12 @@ namespace NesLifter.Studio
                     sb.AppendLine("SaveSource=" + (_opts.SaveSource ? "true" : "false"));
                     sb.AppendLine("NoCompile=" + (_opts.NoCompile ? "true" : "false"));
                     File.WriteAllText(cfg, sb.ToString(), Encoding.UTF8);
-                    Log.Info("Создан конфиг: " + cfg);
+                    Log.Info("Config created: " + cfg);
                 }
             }
             catch (Exception ex)
             {
-                Log.Warn("Не удалось создать конфиг: " + ex.Message);
+                Log.Warn("Failed to create config: " + ex.Message);
             }
         }
 
@@ -1086,12 +1086,12 @@ namespace NesLifter.Studio
                 }
                 else
                 {
-                    Log.Error("Входной путь не найден: " + _opts.InputPath);
+                    Log.Error("Input path not found: " + _opts.InputPath);
                 }
             }
             catch (Exception ex)
             {
-                Log.Error("Ошибка сбора файлов: " + ex.Message);
+                Log.Error("File collection error: " + ex.Message);
             }
 
             files.Sort(StringComparer.OrdinalIgnoreCase);
@@ -1106,7 +1106,7 @@ namespace NesLifter.Studio
             }
             catch (Exception ex)
             {
-                Log.Error("Ошибка обработки файла: " + file);
+                Log.Error("File processing error: " + file);
                 Log.Error(ex.Message);
                 Log.Debug(ex.ToString());
                 return false;
@@ -1123,7 +1123,7 @@ namespace NesLifter.Studio
             Directory.CreateDirectory(workDir);
             if (_opts.SaveSource) Directory.CreateDirectory(srcDir);
 
-            Log.Step("=== Обработка ROM: " + file + " ===");
+            Log.Step("=== Processing ROM: " + file + " ===");
 
             NesRom rom = NesRom.Load(file);
             Log.Info(string.Format(
@@ -1168,11 +1168,11 @@ namespace NesLifter.Studio
                         "8231\r\n",
                         Encoding.UTF8);
 
-                    Log.Info("Создан файл dynamic targets: " + dynamicTargetsPath);
+                    Log.Info("Dynamic targets file created: " + dynamicTargetsPath);
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn("Не удалось создать dynamic_targets.txt: " + ex.Message);
+                    Log.Warn("Failed to create dynamic_targets.txt: " + ex.Message);
                 }
             }
 
@@ -1211,7 +1211,7 @@ namespace NesLifter.Studio
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn("Не удалось прочитать dynamic targets file: " + ex.Message);
+                    Log.Warn("Failed to read dynamic targets file: " + ex.Message);
                 }
             }
 
@@ -1243,10 +1243,10 @@ namespace NesLifter.Studio
             }
 
             if (model.UnknownOpcodes.Count > 0)
-                Log.Warn("Найдены неизвестные/неподдерживаемые опкоды. Они будут заменены trap/NOP-заглушками.");
+                Log.Warn("Unknown/unsupported opcodes found. They will be replaced with trap/NOP stubs.");
 
             if (model.IndirectJumps.Count > 0)
-                Log.Warn("Найдены JMP ($addr). Используется dispatch-таблица динамических переходов.");
+                Log.Warn("JMP ($addr) found. Using dynamic dispatch table.");
 
             Lifter lifter = new Lifter(rom, model, safeName);
             string code = lifter.Generate();
@@ -1255,12 +1255,12 @@ namespace NesLifter.Studio
             {
                 string srcPath = Path.Combine(srcDir, "Game.generated.cs");
                 File.WriteAllText(srcPath, code, Encoding.UTF8);
-                Log.Ok("Промежуточный C# сохранен: " + srcPath);
+                Log.Ok("Intermediate C# saved: " + srcPath);
             }
 
             if (_opts.NoCompile)
             {
-                Log.Warn("Компиляция отключена (--no-compile).");
+                Log.Warn("Compilation disabled (--no-compile).");
                 return true;
             }
 
@@ -1268,9 +1268,9 @@ namespace NesLifter.Studio
             bool compiled = Compile(code, exePath);
 
             if (compiled)
-                Log.Ok("Скомпилировано: " + exePath);
+                Log.Ok("Compiled: " + exePath);
             else
-                Log.Error("Компиляция сгенерированного кода не удалась. Смотрите лог и src/Game.generated.cs.");
+                Log.Error("Compilation of generated code failed. See log and src/Game.generated.cs.");
 
             return compiled;
         }
@@ -1324,7 +1324,7 @@ namespace NesLifter.Studio
             }
             catch (Exception ex)
             {
-                Log.Error("Исключение при компиляции: " + ex.Message);
+                Log.Error("Compilation exception: " + ex.Message);
                 Log.Debug(ex.ToString());
                 return false;
             }
@@ -1385,13 +1385,13 @@ namespace NesLifter.Studio
             using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 if (fs.Length < 16)
-                    throw new InvalidDataException("Файл меньше iNES заголовка.");
+                    throw new InvalidDataException("File is smaller than iNES header.");
 
                 byte[] header = new byte[16];
                 ReadExact(fs, header, 16);
 
                 if (header[0] != 0x4E || header[1] != 0x45 || header[2] != 0x53 || header[3] != 0x1A)
-                    throw new InvalidDataException("Нет сигнатуры iNES (NES 0x1A).");
+                    throw new InvalidDataException("Missing iNES signature (NES\\x1A).");
 
                 int prgBanks = header[4];
                 int chrBanks = header[5];
@@ -1431,7 +1431,7 @@ namespace NesLifter.Studio
             while (read < count)
             {
                 int n = fs.Read(buffer, read, count - read);
-                if (n <= 0) throw new EndOfStreamException("Неожиданный конец ROM-файла.");
+                if (n <= 0) throw new EndOfStreamException("Unexpected end of ROM file.");
                 read += n;
             }
         }
@@ -1439,14 +1439,14 @@ namespace NesLifter.Studio
         static byte[] ReadBlock(FileStream fs, long size)
         {
             if (size == 0) return new byte[0];
-            if (size > int.MaxValue) throw new InvalidDataException("Слишком большой блок ROM для данной реализации.");
+            if (size > int.MaxValue) throw new InvalidDataException("ROM block too large for this implementation.");
 
             byte[] data = new byte[(int)size];
             int read = 0;
             while (read < data.Length)
             {
                 int n = fs.Read(data, read, data.Length - read);
-                if (n <= 0) throw new EndOfStreamException("Неожиданный конец ROM-файла.");
+                if (n <= 0) throw new EndOfStreamException("Unexpected end of ROM file.");
                 read += n;
             }
             return data;
