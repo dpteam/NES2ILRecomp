@@ -22,11 +22,11 @@ jobs:
 
     # Restore the application to populate the obj folder with RuntimeIdentifiers
     - name: Restore the application
-      run: msbuild NES2ILRecomp.sln /t:Restore /p:Configuration=Release
+      run: msbuild NES2ILRecomp.slnx /t:Restore /p:Configuration=Release
 
     # Build the application
     - name: Build the application
-      run: msbuild NES2ILRecomp.sln /p:Configuration=Release /p:Platform="Any CPU"
+      run: msbuild NES2ILRecomp.slnx /p:Configuration=Release /p:Platform="Any CPU"
 
     # Upload the release build artifacts
     - name: Upload artifacts
