@@ -90,10 +90,10 @@ If launched without arguments in an interactive console, a text-based menu appea
 
 ```
 NES Static Recompiler -- TUI
-> Указать путь к ROM или папке
-  Рекурсивная обработка папок: выкл
-  Запустить рекомпиляцию
-  Выход
+> Specify ROM or folder path
+  Recursive folder processing: off
+  Start recompilation
+  Exit
 ```
 
 ---
