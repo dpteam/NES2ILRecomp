@@ -1,14 +1,12 @@
-# NES2ILRecomp
+<img width="262" height="23" alt="Logo" src="https://github.com/user-attachments/assets/40f14cfd-5272-41e2-8afa-fa3abb38aef1" />
 
-**NesLifter.Studio** — NES Static Recompiler / Lifter to .NET Assembly (PoC)
-
-<img width="350" height="20" alt="logo" src="https://github.com/user-attachments/assets/02dc6a19-a6f2-47a2-ad2d-9ed3db5e8442" />
+NES Static Recompiler / Lifter to .NET Assembly (PoC)
 
 > ⚠️ **Very experimental.** Exists as a proof of concept. Currently tested only on Super Mario Bros ROM.
 
 Example: 
 
-<img width="258" height="267" alt="screenshot" src="https://github.com/user-attachments/assets/1aaafdbc-bc5e-4544-8288-c1725ef5eca5" />
+<img width="258" height="267" alt="SMB Game Screenshot" src="https://github.com/user-attachments/assets/1aaafdbc-bc5e-4544-8288-c1725ef5eca5" />
 
 ---
 
