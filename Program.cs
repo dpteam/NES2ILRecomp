@@ -1291,7 +1291,7 @@ namespace NES2ILRecomp
                     cp.GenerateExecutable = true;
                     cp.OutputAssembly = exePath;
                     cp.IncludeDebugInformation = false;
-                    cp.CompilerOptions = "/optimize- /nowarn:0162,0164,0219";
+                    cp.CompilerOptions = "/optimize+ /nowarn:0162,0164,0219,0168,0414";
                     cp.ReferencedAssemblies.Add("System.dll");
                     cp.ReferencedAssemblies.Add("System.Drawing.dll");
                     cp.ReferencedAssemblies.Add("System.Windows.Forms.dll");
@@ -1547,14 +1547,16 @@ namespace NES2ILRecomp
         public byte Len;
         public AddrMode Mode;
         public OpControl Ctrl;
+        public byte Cycles;
 
-        public OpInfo(byte opcode, string mn, byte len, AddrMode mode, OpControl ctrl)
+        public OpInfo(byte opcode, string mn, byte len, AddrMode mode, OpControl ctrl, byte cycles)
         {
             Opcode = opcode;
             Mn = mn;
             Len = len;
             Mode = mode;
             Ctrl = ctrl;
+            Cycles = cycles;
         }
     }
 
@@ -1567,313 +1569,305 @@ namespace NES2ILRecomp
             DefineTable();
         }
 
-        static void Def(int op, string mn, byte len, AddrMode mode, OpControl ctrl)
+        static void Def(int op, string mn, byte len, AddrMode mode, OpControl ctrl, byte cycles)
         {
-            Table[op] = new OpInfo((byte)op, mn, len, mode, ctrl);
+            Table[op] = new OpInfo((byte)op, mn, len, mode, ctrl, cycles);
         }
 
         static void DefineTable()
         {
-            Def(0x00, "BRK", 1, AddrMode.Imp, OpControl.Brk);
-            Def(0x01, "ORA", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x05, "ORA", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x06, "ASL", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x08, "PHP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x0A, "ASL", 1, AddrMode.Acc, OpControl.Normal);
-            Def(0x0D, "ORA", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x0E, "ASL", 3, AddrMode.Abs, OpControl.Normal);
+            // Официальные опкоды
+            Def(0x00, "BRK", 2, AddrMode.Imp, OpControl.Brk, 7);
+            Def(0x01, "ORA", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0x05, "ORA", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x06, "ASL", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0x08, "PHP", 1, AddrMode.Imp, OpControl.Normal, 3);
+            Def(0x0A, "ASL", 1, AddrMode.Acc, OpControl.Normal, 2);
+            Def(0x0D, "ORA", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0x0E, "ASL", 3, AddrMode.Abs, OpControl.Normal, 6);
 
-            Def(0x10, "BPL", 2, AddrMode.Rel, OpControl.Branch);
-            Def(0x11, "ORA", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0x15, "ORA", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x16, "ASL", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x18, "CLC", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x19, "ORA", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x1D, "ORA", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x1E, "ASL", 3, AddrMode.AbsX, OpControl.Normal);
+            Def(0x10, "BPL", 2, AddrMode.Rel, OpControl.Branch, 2); // +1 if taken, +1 if page crossed
+            Def(0x11, "ORA", 2, AddrMode.IndY, OpControl.Normal, 5); // +1 if page crossed
+            Def(0x15, "ORA", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x16, "ASL", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0x18, "CLC", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x19, "ORA", 3, AddrMode.AbsY, OpControl.Normal, 4); // +1 if page crossed
+            Def(0x1D, "ORA", 3, AddrMode.AbsX, OpControl.Normal, 4); // +1 if page crossed
+            Def(0x1E, "ASL", 3, AddrMode.AbsX, OpControl.Normal, 7);
 
-            Def(0x20, "JSR", 3, AddrMode.Abs, OpControl.Jsr);
-            Def(0x21, "AND", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x24, "BIT", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x25, "AND", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x26, "ROL", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x28, "PLP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x2A, "ROL", 1, AddrMode.Acc, OpControl.Normal);
-            Def(0x2C, "BIT", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x2D, "AND", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x2E, "ROL", 3, AddrMode.Abs, OpControl.Normal);
+            Def(0x20, "JSR", 3, AddrMode.Abs, OpControl.Jsr, 6);
+            Def(0x21, "AND", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0x24, "BIT", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x25, "AND", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x26, "ROL", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0x28, "PLP", 1, AddrMode.Imp, OpControl.Normal, 4);
+            Def(0x2A, "ROL", 1, AddrMode.Acc, OpControl.Normal, 2);
+            Def(0x2C, "BIT", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0x2D, "AND", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0x2E, "ROL", 3, AddrMode.Abs, OpControl.Normal, 6);
 
-            Def(0x30, "BMI", 2, AddrMode.Rel, OpControl.Branch);
-            Def(0x31, "AND", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0x35, "AND", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x36, "ROL", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x38, "SEC", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x39, "AND", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x3D, "AND", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x3E, "ROL", 3, AddrMode.AbsX, OpControl.Normal);
+            Def(0x30, "BMI", 2, AddrMode.Rel, OpControl.Branch, 2);
+            Def(0x31, "AND", 2, AddrMode.IndY, OpControl.Normal, 5);
+            Def(0x35, "AND", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x36, "ROL", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0x38, "SEC", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x39, "AND", 3, AddrMode.AbsY, OpControl.Normal, 4);
+            Def(0x3D, "AND", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0x3E, "ROL", 3, AddrMode.AbsX, OpControl.Normal, 7);
 
-            Def(0x40, "RTI", 1, AddrMode.Imp, OpControl.Rti);
-            Def(0x41, "EOR", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x45, "EOR", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x46, "LSR", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x48, "PHA", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x4A, "LSR", 1, AddrMode.Acc, OpControl.Normal);
-            Def(0x4C, "JMP", 3, AddrMode.Abs, OpControl.Jmp);
-            Def(0x4D, "EOR", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x4E, "LSR", 3, AddrMode.Abs, OpControl.Normal);
+            Def(0x40, "RTI", 1, AddrMode.Imp, OpControl.Rti, 6);
+            Def(0x41, "EOR", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0x45, "EOR", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x46, "LSR", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0x48, "PHA", 1, AddrMode.Imp, OpControl.Normal, 3);
+            Def(0x4A, "LSR", 1, AddrMode.Acc, OpControl.Normal, 2);
+            Def(0x4C, "JMP", 3, AddrMode.Abs, OpControl.Jmp, 3);
+            Def(0x4D, "EOR", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0x4E, "LSR", 3, AddrMode.Abs, OpControl.Normal, 6);
 
-            Def(0x50, "BVC", 2, AddrMode.Rel, OpControl.Branch);
-            Def(0x51, "EOR", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0x55, "EOR", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x56, "LSR", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x58, "CLI", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x59, "EOR", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x5D, "EOR", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x5E, "LSR", 3, AddrMode.AbsX, OpControl.Normal);
+            Def(0x50, "BVC", 2, AddrMode.Rel, OpControl.Branch, 2);
+            Def(0x51, "EOR", 2, AddrMode.IndY, OpControl.Normal, 5);
+            Def(0x55, "EOR", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x56, "LSR", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0x58, "CLI", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x59, "EOR", 3, AddrMode.AbsY, OpControl.Normal, 4);
+            Def(0x5D, "EOR", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0x5E, "LSR", 3, AddrMode.AbsX, OpControl.Normal, 7);
 
-            Def(0x60, "RTS", 1, AddrMode.Imp, OpControl.Rts);
-            Def(0x61, "ADC", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x65, "ADC", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x66, "ROR", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x68, "PLA", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x6A, "ROR", 1, AddrMode.Acc, OpControl.Normal);
-            Def(0x6C, "JMP", 3, AddrMode.Ind, OpControl.JmpInd);
-            Def(0x6D, "ADC", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x6E, "ROR", 3, AddrMode.Abs, OpControl.Normal);
+            Def(0x60, "RTS", 1, AddrMode.Imp, OpControl.Rts, 6);
+            Def(0x61, "ADC", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0x65, "ADC", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x66, "ROR", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0x68, "PLA", 1, AddrMode.Imp, OpControl.Normal, 4);
+            Def(0x6A, "ROR", 1, AddrMode.Acc, OpControl.Normal, 2);
+            Def(0x6C, "JMP", 3, AddrMode.Ind, OpControl.JmpInd, 5);
+            Def(0x6D, "ADC", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0x6E, "ROR", 3, AddrMode.Abs, OpControl.Normal, 6);
 
-            Def(0x70, "BVS", 2, AddrMode.Rel, OpControl.Branch);
-            Def(0x71, "ADC", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0x75, "ADC", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x76, "ROR", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x78, "SEI", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x79, "ADC", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x7D, "ADC", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x7E, "ROR", 3, AddrMode.AbsX, OpControl.Normal);
+            Def(0x70, "BVS", 2, AddrMode.Rel, OpControl.Branch, 2);
+            Def(0x71, "ADC", 2, AddrMode.IndY, OpControl.Normal, 5);
+            Def(0x75, "ADC", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x76, "ROR", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0x78, "SEI", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x79, "ADC", 3, AddrMode.AbsY, OpControl.Normal, 4);
+            Def(0x7D, "ADC", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0x7E, "ROR", 3, AddrMode.AbsX, OpControl.Normal, 7);
 
-            Def(0x81, "STA", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x84, "STY", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x85, "STA", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x86, "STX", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x88, "DEY", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x8A, "TXA", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x8C, "STY", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x8D, "STA", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x8E, "STX", 3, AddrMode.Abs, OpControl.Normal);
+            Def(0x81, "STA", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0x84, "STY", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x85, "STA", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x86, "STX", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x88, "DEY", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x8A, "TXA", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x8C, "STY", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0x8D, "STA", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0x8E, "STX", 3, AddrMode.Abs, OpControl.Normal, 4);
 
-            Def(0x90, "BCC", 2, AddrMode.Rel, OpControl.Branch);
-            Def(0x91, "STA", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0x94, "STY", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x95, "STA", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x96, "STX", 2, AddrMode.ZpY, OpControl.Normal);
-            Def(0x98, "TYA", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x99, "STA", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x9A, "TXS", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x9D, "STA", 3, AddrMode.AbsX, OpControl.Normal);
+            Def(0x90, "BCC", 2, AddrMode.Rel, OpControl.Branch, 2);
+            Def(0x91, "STA", 2, AddrMode.IndY, OpControl.Normal, 6);
+            Def(0x94, "STY", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x95, "STA", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x96, "STX", 2, AddrMode.ZpY, OpControl.Normal, 4);
+            Def(0x98, "TYA", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x99, "STA", 3, AddrMode.AbsY, OpControl.Normal, 5);
+            Def(0x9A, "TXS", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x9D, "STA", 3, AddrMode.AbsX, OpControl.Normal, 5);
 
-            Def(0xA0, "LDY", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xA1, "LDA", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0xA2, "LDX", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xA4, "LDY", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xA5, "LDA", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xA6, "LDX", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xA8, "TAY", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xAA, "TAX", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xAC, "LDY", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xAD, "LDA", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xAE, "LDX", 3, AddrMode.Abs, OpControl.Normal);
+            Def(0xA0, "LDY", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xA1, "LDA", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0xA2, "LDX", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xA4, "LDY", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0xA5, "LDA", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0xA6, "LDX", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0xA8, "TAY", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xAA, "TAX", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xAC, "LDY", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0xAD, "LDA", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0xAE, "LDX", 3, AddrMode.Abs, OpControl.Normal, 4);
 
-            Def(0xB0, "BCS", 2, AddrMode.Rel, OpControl.Branch);
-            Def(0xB1, "LDA", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0xB4, "LDY", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xB5, "LDA", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xB6, "LDX", 2, AddrMode.ZpY, OpControl.Normal);
-            Def(0xB8, "CLV", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xB9, "LDA", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0xBA, "TSX", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xBC, "LDY", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xBD, "LDA", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xBE, "LDX", 3, AddrMode.AbsY, OpControl.Normal);
+            Def(0xB0, "BCS", 2, AddrMode.Rel, OpControl.Branch, 2);
+            Def(0xB1, "LDA", 2, AddrMode.IndY, OpControl.Normal, 5);
+            Def(0xB4, "LDY", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0xB5, "LDA", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0xB6, "LDX", 2, AddrMode.ZpY, OpControl.Normal, 4);
+            Def(0xB8, "CLV", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xB9, "LDA", 3, AddrMode.AbsY, OpControl.Normal, 4);
+            Def(0xBA, "TSX", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xBC, "LDY", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0xBD, "LDA", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0xBE, "LDX", 3, AddrMode.AbsY, OpControl.Normal, 4);
 
-            Def(0xC0, "CPY", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xC1, "CMP", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0xC4, "CPY", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xC5, "CMP", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xC6, "DEC", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xC8, "INY", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xCA, "DEX", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xCC, "CPY", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xCD, "CMP", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xCE, "DEC", 3, AddrMode.Abs, OpControl.Normal);
+            Def(0xC0, "CPY", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xC1, "CMP", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0xC4, "CPY", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0xC5, "CMP", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0xC6, "DEC", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0xC8, "INY", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xCA, "DEX", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xCC, "CPY", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0xCD, "CMP", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0xCE, "DEC", 3, AddrMode.Abs, OpControl.Normal, 6);
 
-            Def(0xD0, "BNE", 2, AddrMode.Rel, OpControl.Branch);
-            Def(0xD1, "CMP", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0xD5, "CMP", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xD6, "DEC", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xD8, "CLD", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xD9, "CMP", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0xDD, "CMP", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xDE, "DEC", 3, AddrMode.AbsX, OpControl.Normal);
+            Def(0xD0, "BNE", 2, AddrMode.Rel, OpControl.Branch, 2);
+            Def(0xD1, "CMP", 2, AddrMode.IndY, OpControl.Normal, 5);
+            Def(0xD5, "CMP", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0xD6, "DEC", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0xD8, "CLD", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xD9, "CMP", 3, AddrMode.AbsY, OpControl.Normal, 4);
+            Def(0xDD, "CMP", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0xDE, "DEC", 3, AddrMode.AbsX, OpControl.Normal, 7);
 
-            Def(0xE0, "CPX", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xE1, "SBC", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0xE4, "CPX", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xE5, "SBC", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xE6, "INC", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xE8, "INX", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xEA, "NOP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xEC, "CPX", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xED, "SBC", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xEE, "INC", 3, AddrMode.Abs, OpControl.Normal);
+            Def(0xE0, "CPX", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xE1, "SBC", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0xE4, "CPX", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0xE5, "SBC", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0xE6, "INC", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0xE8, "INX", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xEA, "NOP", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xEC, "CPX", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0xED, "SBC", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0xEE, "INC", 3, AddrMode.Abs, OpControl.Normal, 6);
 
-            Def(0xF0, "BEQ", 2, AddrMode.Rel, OpControl.Branch);
-            Def(0xF1, "SBC", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0xF5, "SBC", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xF6, "INC", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xF8, "SED", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xF9, "SBC", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0xFD, "SBC", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xFE, "INC", 3, AddrMode.AbsX, OpControl.Normal);
+            Def(0xF0, "BEQ", 2, AddrMode.Rel, OpControl.Branch, 2);
+            Def(0xF1, "SBC", 2, AddrMode.IndY, OpControl.Normal, 5);
+            Def(0xF5, "SBC", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0xF6, "INC", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0xF8, "SED", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xF9, "SBC", 3, AddrMode.AbsY, OpControl.Normal, 4);
+            Def(0xFD, "SBC", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0xFE, "INC", 3, AddrMode.AbsX, OpControl.Normal, 7);
 
-            // === IMMEDIATE MODE (пропущенные) ===
-            Def(0x09, "ORA", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x29, "AND", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x49, "EOR", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x69, "ADC", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xA9, "LDA", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xC9, "CMP", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xE0, "CPX", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xC0, "CPY", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xE9, "SBC", 2, AddrMode.Imm, OpControl.Normal);
+            // === IMMEDIATE MODE (пропущенные ранее) ===
+            Def(0x09, "ORA", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x29, "AND", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x49, "EOR", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x69, "ADC", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xA9, "LDA", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xC9, "CMP", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xE9, "SBC", 2, AddrMode.Imm, OpControl.Normal, 2);
 
-            // === ДОПОЛНИТЕЛЬНЫЕ ABS,X / ABS,Y (пропущенные) ===
-            Def(0x1C, "NOP", 3, AddrMode.AbsX, OpControl.Normal); // unofficial NOP, но встречается
-            Def(0x3C, "NOP", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x5C, "NOP", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x7C, "NOP", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xDC, "NOP", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xFC, "NOP", 3, AddrMode.AbsX, OpControl.Normal);
+            // === ДОПОЛНИТЕЛЬНЫЕ ABS,X / ABS,Y (Unofficial NOPs) ===
+            Def(0x1C, "NOP", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0x3C, "NOP", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0x5C, "NOP", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0x7C, "NOP", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0xDC, "NOP", 3, AddrMode.AbsX, OpControl.Normal, 4);
+            Def(0xFC, "NOP", 3, AddrMode.AbsX, OpControl.Normal, 4);
 
             // === UNOFFICIAL NOP (1-byte и 2-byte) ===
-            Def(0x1A, "NOP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x3A, "NOP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x5A, "NOP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x7A, "NOP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xDA, "NOP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xFA, "NOP", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x80, "NOP", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x82, "NOP", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x89, "NOP", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xC2, "NOP", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xE2, "NOP", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x04, "NOP", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x44, "NOP", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x64, "NOP", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x14, "NOP", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x34, "NOP", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x54, "NOP", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x74, "NOP", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xD4, "NOP", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xF4, "NOP", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x0C, "NOP", 3, AddrMode.Abs, OpControl.Normal);
+            Def(0x1A, "NOP", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x3A, "NOP", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x5A, "NOP", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x7A, "NOP", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xDA, "NOP", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0xFA, "NOP", 1, AddrMode.Imp, OpControl.Normal, 2);
+            Def(0x80, "NOP", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x82, "NOP", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x89, "NOP", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xC2, "NOP", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xE2, "NOP", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x04, "NOP", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x44, "NOP", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x64, "NOP", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x14, "NOP", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x34, "NOP", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x54, "NOP", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x74, "NOP", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0xD4, "NOP", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0xF4, "NOP", 2, AddrMode.ZpX, OpControl.Normal, 4);
+            Def(0x0C, "NOP", 3, AddrMode.Abs, OpControl.Normal, 4);
 
-            // === UNOFFICIAL LAX/SAX/DCP/ISB/SLO/RLA/SRE/RRA (частые в NES) ===
-            Def(0xA7, "LAX", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xB7, "LAX", 2, AddrMode.ZpY, OpControl.Normal);
-            Def(0xAF, "LAX", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xBF, "LAX", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0xA3, "LAX", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0xB3, "LAX", 2, AddrMode.IndY, OpControl.Normal);
+            // === UNOFFICIAL LAX/SAX/DCP/ISB/SLO/RLA/SRE/RRA ===
+            Def(0xA7, "LAX", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0xB7, "LAX", 2, AddrMode.ZpY, OpControl.Normal, 4);
+            Def(0xAF, "LAX", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0xBF, "LAX", 3, AddrMode.AbsY, OpControl.Normal, 4);
+            Def(0xA3, "LAX", 2, AddrMode.XInd, OpControl.Normal, 6);
+            Def(0xB3, "LAX", 2, AddrMode.IndY, OpControl.Normal, 5);
 
-            Def(0x87, "SAX", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x97, "SAX", 2, AddrMode.ZpY, OpControl.Normal);
-            Def(0x8F, "SAX", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x83, "SAX", 2, AddrMode.XInd, OpControl.Normal);
+            Def(0x87, "SAX", 2, AddrMode.Zp, OpControl.Normal, 3);
+            Def(0x97, "SAX", 2, AddrMode.ZpY, OpControl.Normal, 4);
+            Def(0x8F, "SAX", 3, AddrMode.Abs, OpControl.Normal, 4);
+            Def(0x83, "SAX", 2, AddrMode.XInd, OpControl.Normal, 6);
 
-            Def(0xC7, "DCP", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xD7, "DCP", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xCF, "DCP", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xDF, "DCP", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xDB, "DCP", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0xC3, "DCP", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0xD3, "DCP", 2, AddrMode.IndY, OpControl.Normal);
+            Def(0xC7, "DCP", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0xD7, "DCP", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0xCF, "DCP", 3, AddrMode.Abs, OpControl.Normal, 6);
+            Def(0xDF, "DCP", 3, AddrMode.AbsX, OpControl.Normal, 7);
+            Def(0xDB, "DCP", 3, AddrMode.AbsY, OpControl.Normal, 7);
+            Def(0xC3, "DCP", 2, AddrMode.XInd, OpControl.Normal, 8);
+            Def(0xD3, "DCP", 2, AddrMode.IndY, OpControl.Normal, 8);
 
-            Def(0xE7, "ISB", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0xF7, "ISB", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0xEF, "ISB", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0xFF, "ISB", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xFB, "ISB", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0xE3, "ISB", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0xF3, "ISB", 2, AddrMode.IndY, OpControl.Normal);
+            Def(0xE7, "ISB", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0xF7, "ISB", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0xEF, "ISB", 3, AddrMode.Abs, OpControl.Normal, 6);
+            Def(0xFF, "ISB", 3, AddrMode.AbsX, OpControl.Normal, 7);
+            Def(0xFB, "ISB", 3, AddrMode.AbsY, OpControl.Normal, 7);
+            Def(0xE3, "ISB", 2, AddrMode.XInd, OpControl.Normal, 8);
+            Def(0xF3, "ISB", 2, AddrMode.IndY, OpControl.Normal, 8);
 
-            Def(0x07, "SLO", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x17, "SLO", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x0F, "SLO", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x1F, "SLO", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x1B, "SLO", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x03, "SLO", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x13, "SLO", 2, AddrMode.IndY, OpControl.Normal);
+            Def(0x07, "SLO", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0x17, "SLO", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0x0F, "SLO", 3, AddrMode.Abs, OpControl.Normal, 6);
+            Def(0x1F, "SLO", 3, AddrMode.AbsX, OpControl.Normal, 7);
+            Def(0x1B, "SLO", 3, AddrMode.AbsY, OpControl.Normal, 7);
+            Def(0x03, "SLO", 2, AddrMode.XInd, OpControl.Normal, 8);
+            Def(0x13, "SLO", 2, AddrMode.IndY, OpControl.Normal, 8);
 
-            Def(0x27, "RLA", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x37, "RLA", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x2F, "RLA", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x3F, "RLA", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x3B, "RLA", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x23, "RLA", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x33, "RLA", 2, AddrMode.IndY, OpControl.Normal);
+            Def(0x27, "RLA", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0x37, "RLA", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0x2F, "RLA", 3, AddrMode.Abs, OpControl.Normal, 6);
+            Def(0x3F, "RLA", 3, AddrMode.AbsX, OpControl.Normal, 7);
+            Def(0x3B, "RLA", 3, AddrMode.AbsY, OpControl.Normal, 7);
+            Def(0x23, "RLA", 2, AddrMode.XInd, OpControl.Normal, 8);
+            Def(0x33, "RLA", 2, AddrMode.IndY, OpControl.Normal, 8);
 
-            Def(0x47, "SRE", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x57, "SRE", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x4F, "SRE", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x5F, "SRE", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x5B, "SRE", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x43, "SRE", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x53, "SRE", 2, AddrMode.IndY, OpControl.Normal);
+            Def(0x47, "SRE", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0x57, "SRE", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0x4F, "SRE", 3, AddrMode.Abs, OpControl.Normal, 6);
+            Def(0x5F, "SRE", 3, AddrMode.AbsX, OpControl.Normal, 7);
+            Def(0x5B, "SRE", 3, AddrMode.AbsY, OpControl.Normal, 7);
+            Def(0x43, "SRE", 2, AddrMode.XInd, OpControl.Normal, 8);
+            Def(0x53, "SRE", 2, AddrMode.IndY, OpControl.Normal, 8);
 
-            Def(0x67, "RRA", 2, AddrMode.Zp, OpControl.Normal);
-            Def(0x77, "RRA", 2, AddrMode.ZpX, OpControl.Normal);
-            Def(0x6F, "RRA", 3, AddrMode.Abs, OpControl.Normal);
-            Def(0x7F, "RRA", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x7B, "RRA", 3, AddrMode.AbsY, OpControl.Normal);
-            Def(0x63, "RRA", 2, AddrMode.XInd, OpControl.Normal);
-            Def(0x73, "RRA", 2, AddrMode.IndY, OpControl.Normal);
+            Def(0x67, "RRA", 2, AddrMode.Zp, OpControl.Normal, 5);
+            Def(0x77, "RRA", 2, AddrMode.ZpX, OpControl.Normal, 6);
+            Def(0x6F, "RRA", 3, AddrMode.Abs, OpControl.Normal, 6);
+            Def(0x7F, "RRA", 3, AddrMode.AbsX, OpControl.Normal, 7);
+            Def(0x7B, "RRA", 3, AddrMode.AbsY, OpControl.Normal, 7);
+            Def(0x63, "RRA", 2, AddrMode.XInd, OpControl.Normal, 8);
+            Def(0x73, "RRA", 2, AddrMode.IndY, OpControl.Normal, 8);
 
-            // Super Mario Bros может содержать эти illegal/NES-опкоды как данные или код.
-            // Для статического лифтера пока делаем максимально безопасную заглушку.
+            // === KIL / JAM (CPU Halts) ===
+            Def(0x12, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0x92, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0x02, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0x22, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0x32, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0x42, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0x52, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0x62, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0x72, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0xB2, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0xD2, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
+            Def(0xF2, "KIL", 1, AddrMode.Imp, OpControl.Normal, 1);
 
-            Def(0x12, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x92, "KIL", 1, AddrMode.Imp, OpControl.Normal);
+            // === Другие неофициальные ===
+            Def(0x93, "AXA", 2, AddrMode.IndY, OpControl.Normal, 6);
+            Def(0x9F, "AXA", 3, AddrMode.AbsY, OpControl.Normal, 5);
 
-            Def(0x93, "AXA", 2, AddrMode.IndY, OpControl.Normal);
-            Def(0x9F, "AXA", 3, AddrMode.AbsY, OpControl.Normal);
+            Def(0x0B, "ANC", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x2B, "ANC", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x4B, "ALR", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x6B, "ARR", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0x8B, "ANE", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xAB, "LXA", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xCB, "AXS", 2, AddrMode.Imm, OpControl.Normal, 2);
+            Def(0xEB, "SBC", 2, AddrMode.Imm, OpControl.Normal, 2);
 
-            // === Еще немного unofficial 6502/NES opcodes ===
-
-            // KIL / JAM / NOP-like invalid instructions
-            Def(0x02, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x22, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x32, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x42, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x52, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x62, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0x72, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xB2, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xD2, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-            Def(0xF2, "KIL", 1, AddrMode.Imp, OpControl.Normal);
-
-            // Immediate unofficial
-            Def(0x0B, "ANC", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x2B, "ANC", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x4B, "ALR", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x6B, "ARR", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0x8B, "ANE", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xAB, "LXA", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xCB, "AXS", 2, AddrMode.Imm, OpControl.Normal);
-            Def(0xEB, "SBC", 2, AddrMode.Imm, OpControl.Normal);
-
-            // Memory unofficial
-            Def(0x9C, "SHY", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0x9E, "SHY", 3, AddrMode.AbsX, OpControl.Normal);
-            Def(0xBB, "LAS", 3, AddrMode.AbsY, OpControl.Normal);
+            Def(0x9C, "SHY", 3, AddrMode.AbsX, OpControl.Normal, 5);
+            Def(0x9E, "SHY", 3, AddrMode.AbsX, OpControl.Normal, 5);
+            Def(0xBB, "LAS", 3, AddrMode.AbsY, OpControl.Normal, 4);
         }
     }
 
@@ -2166,6 +2160,12 @@ namespace NES2ILRecomp
 
                 default:
                     {
+                        if (info.Mn == "KIL")
+                        {
+                            inst.Fallthrough = 0;
+                            inst.HasFallthrough = false;
+                            break;
+                        }
                         inst.Fallthrough = (ushort)(addr + inst.Length);
                         inst.HasFallthrough = IsValid(inst.Fallthrough);
                         break;
@@ -2399,6 +2399,7 @@ namespace NES2ILRecomp
             sb.AppendLine("public static System.Collections.Generic.Dictionary<ushort, bool> SeenDynamic = new System.Collections.Generic.Dictionary<ushort, bool>();");
             sb.AppendLine("public static volatile bool NmiPending;");
             sb.AppendLine("public static volatile bool InNmi;");
+            sb.AppendLine("public static volatile bool OsdFull;");   // false = 1 строка на экране; H/F1 - toggle
             sb.AppendLine("public static ushort NmiVector = 0x" + _nmiTarget.ToString("X4") + ";");
             sb.AppendLine("public static object FrameLock = new object();");
             sb.AppendLine("public static byte Joy1Buttons;");
@@ -2409,12 +2410,25 @@ namespace NES2ILRecomp
             sb.AppendLine("public static int Joy2Idx;");
             sb.AppendLine("public static long ClockStart = System.Diagnostics.Stopwatch.GetTimestamp();");
             sb.AppendLine("public static volatile bool ThrottleEnabled = true;");
+            sb.AppendLine("public static long CpuCycles = 0;");
+            sb.AppendLine("public static long NextVblankCycle = 29780;");
+            sb.AppendLine("public static long NmiEnterCycles;");
             sb.AppendLine();
 
             sb.AppendLine("public static void Init()");
             sb.AppendLine("{");
             sb.AppendLine("A = 0; X = 0; Y = 0; SP = 0xFD; P = 0x24; DispatchTarget = 0; CpuState = \"Init\";");
             sb.AppendLine("Memory.Reset(); Ppu.Reset(); Apu.Reset(); MapperStub.Reset();");
+            sb.AppendLine("try");
+            sb.AppendLine("{");
+            sb.AppendLine("    string savePath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, GameName + \".sav\");");
+            sb.AppendLine("    if (System.IO.File.Exists(savePath))");
+            sb.AppendLine("    {");
+            sb.AppendLine("        byte[] data = System.IO.File.ReadAllBytes(savePath);");
+            sb.AppendLine("        Array.Copy(data, SaveRam, Math.Min(data.Length, SaveRam.Length));");
+            sb.AppendLine("    }");
+            sb.AppendLine("}");
+            sb.AppendLine("catch { }");
             sb.AppendLine("}");
             sb.AppendLine();
 
@@ -2428,6 +2442,9 @@ namespace NES2ILRecomp
             sb.AppendLine("public static void Reset()");
             sb.AppendLine("{");
             sb.AppendLine("A = 0; X = 0; Y = 0; SP = 0xFD; P = 0x24; LastError = null; LastTrap = null; InsCount = 0; LastPC = 0; TrapCount = 0; DispatchTarget = 0; CpuState = \"Reset\";");
+            sb.AppendLine("CpuCycles = 0;");
+            sb.AppendLine("NextVblankCycle = 29780;");
+            sb.AppendLine("ClockStart = System.Diagnostics.Stopwatch.GetTimestamp();");
             sb.AppendLine("if (SeenDynamic != null) SeenDynamic.Clear();");
             sb.AppendLine("}");
             sb.AppendLine();
@@ -2472,16 +2489,30 @@ namespace NES2ILRecomp
                 sb.AppendLine("L" + addr.ToString("X4") + ":");
                 sb.AppendLine("{");
 
-                Line(sb, "Runtime.LastPC = 0x" + addr.ToString("X4") + ";");
-                Line(sb, "Runtime.InsCount++;");
+                // 1. Сначала получаем инструкцию
+                Instruction inst = null;
+                _model.Instructions.TryGetValue(addr, out inst);
 
+                // 2. Увеличиваем счётчик циклов
+                Line(sb, "Runtime.LastPC = 0x" + addr.ToString("X4") + ";");
+
+                if (inst != null && inst.Info != null)
+                {
+                    Line(sb, "Runtime.InsCount++; Runtime.CpuCycles += " + inst.Info.Cycles + ";");
+                }
+                else
+                {
+                    Line(sb, "Runtime.InsCount++; Runtime.CpuCycles++;"); // Запасной вариант
+                }
+
+                // 3. Проверяем NMI
                 if (_hasNmi)
                 {
                     Line(sb, "if (Runtime.CheckNmi(0x" + addr.ToString("X4") + ")) goto L" + _nmiTarget.ToString("X4") + ";");
                 }
 
-                Instruction inst;
-                if (_model.Instructions.TryGetValue(addr, out inst))
+                // 4. Генерируем код инструкции
+                if (inst != null)
                 {
                     Line(sb, "// " + inst.Text);
                     EmitInstruction(sb, inst);
@@ -2565,21 +2596,44 @@ namespace NES2ILRecomp
             sb.AppendLine("    if (!ThrottleEnabled) return;");
             sb.AppendLine("    long freq = System.Diagnostics.Stopwatch.Frequency;");
             sb.AppendLine("    long now = System.Diagnostics.Stopwatch.GetTimestamp();");
-            sb.AppendLine("    long ahead = InsCount - (now - ClockStart) * 1789773L / freq;");
-            sb.AppendLine("    if (ahead < -59659) { ClockStart = System.Diagnostics.Stopwatch.GetTimestamp(); return; }");
-            sb.AppendLine("    if (ahead <= 29829) return;");
-            sb.AppendLine("    for (int k = 0; k < 4; k++)");
+            sb.AppendLine("    long elapsedCycles = (now - ClockStart) * 1789773L / freq;");
+            sb.AppendLine("    long ahead = CpuCycles - elapsedCycles;");
+            sb.AppendLine("    if (ahead <= 1789L) return;");
+            sb.AppendLine("    // Защита от накопленного обгона: если CPU ушёл вперёд больше чем на");
+            sb.AppendLine("    // ~100k циклов (~56 мс) - перебазируем часы так, чтобы ahead стал ~0,");
+            sb.AppendLine("    // БЕЗ сна. Иначе targetTimestamp улетает на десятки секунд в будущее и");
+            sb.AppendLine("    // CPU 'зависает' во сне (именно это давало 'I стоит, F растёт').");
+            sb.AppendLine("    if (ahead > 100000L)");
             sb.AppendLine("    {");
-            sb.AppendLine("        Thread.Sleep(1);");
-            sb.AppendLine("        long n2 = System.Diagnostics.Stopwatch.GetTimestamp();");
-            sb.AppendLine("        if (InsCount - (n2 - ClockStart) * 1789773L / freq <= 29829) return;");
+            sb.AppendLine("        ClockStart = now - (CpuCycles - 1789L) * freq / 1789773L;");
+            sb.AppendLine("        return;");
             sb.AppendLine("    }");
-            sb.AppendLine("    ClockStart = System.Diagnostics.Stopwatch.GetTimestamp();");
+            sb.AppendLine("    long targetTimestamp = ClockStart + (CpuCycles - 1789L) * freq / 1789773L;");
+            sb.AppendLine("    // Жёсткий потолок сна: не больше ~50 мс за один вызов. Даже если расчёт");
+            sb.AppendLine("    // targetTimestamp по какой-то причине дал дикое значение - CPU проснётся");
+            sb.AppendLine("    // через 50 мс и продолжит крутить инструкции -> 'I стоит' невозможно.");
+            sb.AppendLine("    long maxTs = now + 50000L * freq / 1000000L;");
+            sb.AppendLine("    if (targetTimestamp > maxTs) targetTimestamp = maxTs;");
+            sb.AppendLine("    long t;");
+            sb.AppendLine("    while ((t = System.Diagnostics.Stopwatch.GetTimestamp()) < targetTimestamp)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        long leftUs = (targetTimestamp - t) * 1000000L / freq;");
+            sb.AppendLine("        if (leftUs > 1500L) System.Threading.Thread.Sleep(1);");
+            sb.AppendLine("        else System.Threading.Thread.SpinWait(50);");
+            sb.AppendLine("    }");
             sb.AppendLine("}");
             sb.AppendLine();
             sb.AppendLine("public static bool CheckNmi(ushort pc)");
             sb.AppendLine("{");
-            sb.AppendLine("    if ((InsCount & 511) == 0) Throttle();");
+            sb.AppendLine("    if ((CpuCycles & 2047) == 0) Throttle();");
+            sb.AppendLine();
+            sb.AppendLine("    // Watchdog: если по какой-то причине RTI не сбросил InNmi и мы");
+            sb.AppendLine("    // застряли внутри обработчика дольше ~1.5 млн циклов - выходим.");
+            sb.AppendLine("    // Без этого основной loop SMB (вся логика в NMI) стоит навсегда.");
+            sb.AppendLine("    if (InNmi && (CpuCycles - NmiEnterCycles) > 1500000L) InNmi = false;");
+            sb.AppendLine();
+            sb.AppendLine("    // vblank/NmiPending теперь ставит UI-таймер (60 Hz, wall-clock).");
+            sb.AppendLine("    // Здесь только детект и вход. Без маски по InsCount - каждую инструкцию.");
             sb.AppendLine("    if (!NmiPending || InNmi || (Ppu.Ctrl & 0x80) == 0)");
             sb.AppendLine("    {");
             sb.AppendLine("        if ((Ppu.Ctrl & 0x80) == 0) NmiPending = false;");
@@ -2588,8 +2642,8 @@ namespace NES2ILRecomp
             sb.AppendLine();
             sb.AppendLine("    NmiPending = false;");
             sb.AppendLine("    InNmi = true;");
+            sb.AppendLine("    NmiEnterCycles = CpuCycles;");
             sb.AppendLine();
-            sb.AppendLine("    // NMI pushes PC and P, then sets I flag.");
             sb.AppendLine("    Push16(pc);");
             sb.AppendLine("    Push((byte)((P & 0xEF) | 0x20));");
             sb.AppendLine("    P = (byte)(P | 0x04);");
@@ -2680,6 +2734,17 @@ namespace NES2ILRecomp
             }
             sb.AppendLine("};");
 
+            // ДОБАВИТЬ ЭТУ ТАБЛИЦУ:
+            sb.Append("public static readonly byte[] OpCycles = new byte[256]{");
+            for (int i = 0; i < 256; i++)
+            {
+                if (i > 0) sb.Append(",");
+                OpInfo oi = Cpu6502.Table[i];
+                int cyc = (oi == null) ? 1 : oi.Cycles;
+                sb.Append(cyc.ToString(CultureInfo.InvariantCulture));
+            }
+            sb.AppendLine("};");
+
             sb.Append("public static readonly byte[] OpMnem = new byte[256]{");
             for (int i = 0; i < 256; i++)
             {
@@ -2746,14 +2811,19 @@ namespace NES2ILRecomp
             sb.AppendLine("public static bool Interpret()");
             sb.AppendLine("{");
             sb.AppendLine("ushort pc = DispatchTarget;");
-            sb.AppendLine("for (int g = 0; g < 4000000; g++)");
+            sb.AppendLine("for (int g = 0; g < 100000; g++)");
             sb.AppendLine("{");
             // NMI имеет приоритет
             sb.AppendLine("if (CheckNmi(pc)) { DispatchTarget = NmiVector; return true; }");
             // вернулись в статический код -> выходим в Dispatch
             sb.AppendLine("if (IsStaticLabel(pc)) { DispatchTarget = pc; return true; }");
-            sb.AppendLine("LastPC = pc; InsCount++;");
+
+            // 1. СНАЧАЛА ЧИТАЕМ ОПКОД:
             sb.AppendLine("byte op = Memory.Read(pc);");
+
+            // 2. ПОТОМ УВЕЛИЧИВАЕМ СЧЁТЧИКИ:
+            sb.AppendLine("LastPC = pc; InsCount++; CpuCycles += OpCycles[op];");
+
             sb.AppendLine("byte mnem = OpMnem[op];");
             sb.AppendLine("byte mode = OpMode[op];");
             sb.AppendLine("byte len = OpLen[op];");
@@ -2762,7 +2832,19 @@ namespace NES2ILRecomp
             // поток управления (переходы) обрабатываем до общего switch
             sb.AppendLine("switch (mnem) {");
             // JMP abs / JMP (ind)
-            sb.AppendLine("case 44: { ushort tgt = (mode == 9) ? Memory.Read16(Memory.Read16((ushort)(pc + 1))) : Memory.Read16((ushort)(pc + 1)); if (IsStaticLabel(tgt)) { DispatchTarget = tgt; return true; } pc = tgt; continue; }");
+            sb.AppendLine("            case 44: {");
+            sb.AppendLine("                ushort tgt;");
+            sb.AppendLine("                if (mode == 9) {");
+            sb.AppendLine("                    ushort ptr = Memory.Read16((ushort)(pc + 1));");
+            sb.AppendLine("                    ushort loAddr = ptr;");
+            sb.AppendLine("                    ushort hiAddr = (ushort)((ptr & 0xFF00) | ((ptr + 1) & 0x00FF));");
+            sb.AppendLine("                    tgt = (ushort)(Memory.Read(loAddr) | (Memory.Read(hiAddr) << 8));");
+            sb.AppendLine("                } else {");
+            sb.AppendLine("                    tgt = Memory.Read16((ushort)(pc + 1));");
+            sb.AppendLine("                }");
+            sb.AppendLine("                if (IsStaticLabel(tgt)) { DispatchTarget = tgt; return true; }");
+            sb.AppendLine("                pc = tgt; continue;");
+            sb.AppendLine("            }");
             // JSR
             sb.AppendLine("case 45: { JsrPush((ushort)(pc + 3)); ushort tgt = Memory.Read16((ushort)(pc + 1)); if (IsStaticLabel(tgt)) { DispatchTarget = tgt; return true; } pc = tgt; continue; }");
             // RTS
@@ -2838,6 +2920,7 @@ namespace NES2ILRecomp
             sb.AppendLine("case 64: Memory.Write(AddrOp(mode, pc, imm), Y); break;");
             sb.AppendLine("case 65: SP = (byte)(SP & val); A = SP; X = SP; SetNZ(SP); break;");
             sb.AppendLine("case 66: Memory.Write(AddrOp(mode, pc, imm), (byte)(A & X)); break;");
+            sb.AppendLine("case 67: DispatchTarget = pc; return false;");
             // KIL / unknown -> фатал для интерпретатора (вернём false, Dispatch поставит trap)
             sb.AppendLine("default: DispatchTarget = pc; return false;");
             sb.AppendLine("}");
@@ -2917,23 +3000,33 @@ namespace NES2ILRecomp
 
             sb.AppendLine("public static byte ReadPrg(ushort addr)");
             sb.AppendLine("{");
-            sb.AppendLine("int len = Runtime.PrgRom.Length;");
-            sb.AppendLine("if (len == 0) return 0;");
-            sb.AppendLine();
-            sb.AppendLine("if (len <= 0x4000)");
-            sb.AppendLine("{");
-            sb.AppendLine("int a = addr >= 0xC000 ? addr - 0xC000 : addr - 0x8000;");
-            sb.AppendLine("if (a < 0) a = addr - 0x8000;");
-            sb.AppendLine("return Runtime.PrgRom[a % len];");
-            sb.AppendLine("}");
-            sb.AppendLine();
-            sb.AppendLine("if (len <= 0x8000)");
-            sb.AppendLine("{");
-            sb.AppendLine("return Runtime.PrgRom[(addr - 0x8000) % len];");
-            sb.AppendLine("}");
-            sb.AppendLine();
-            sb.AppendLine("int baseIndex = len - 0x8000;");
-            sb.AppendLine("return Runtime.PrgRom[baseIndex + (addr - 0x8000)];");
+            sb.AppendLine("    int len = Runtime.PrgRom.Length;");
+            sb.AppendLine("    if (len == 0) return 0;");
+            sb.AppendLine("    if (Runtime.Mapper == 2 && len > 0x8000)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        if (addr < 0xC000)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            int bankOff = MapperStub.PrgBank * 0x4000;");
+            sb.AppendLine("            return Runtime.PrgRom[(bankOff + (addr - 0x8000)) % len];");
+            sb.AppendLine("        }");
+            sb.AppendLine("        else");
+            sb.AppendLine("        {");
+            sb.AppendLine("            int lastBank = len - 0x4000;");
+            sb.AppendLine("            return Runtime.PrgRom[lastBank + (addr - 0xC000)];");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine("    if (len <= 0x4000)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        int a = addr >= 0xC000 ? addr - 0xC000 : addr - 0x8000;");
+            sb.AppendLine("        if (a < 0) a = addr - 0x8000;");
+            sb.AppendLine("        return Runtime.PrgRom[a % len];");
+            sb.AppendLine("    }");
+            sb.AppendLine("    if (len <= 0x8000)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        return Runtime.PrgRom[(addr - 0x8000) % len];");
+            sb.AppendLine("    }");
+            sb.AppendLine("    int baseIndex = len - 0x8000;");
+            sb.AppendLine("    return Runtime.PrgRom[baseIndex + (addr - 0x8000)];");
             sb.AppendLine("}");
             sb.AppendLine("}");
             sb.AppendLine();
@@ -2945,7 +3038,7 @@ namespace NES2ILRecomp
             sb.AppendLine("{");
 
             sb.AppendLine("public static volatile byte Ctrl, Mask, Status, OamAddr, ScrollX, ScrollY;");
-            sb.AppendLine("public static bool AddrToggle, ScrollToggle;");
+            sb.AppendLine("public static bool WToggle;");
             sb.AppendLine("public static volatile ushort VRamAddr;");
             sb.AppendLine("public static byte DataBuffer;");
             sb.AppendLine("public static byte[] VRam = new byte[0x4000];");
@@ -2953,6 +3046,8 @@ namespace NES2ILRecomp
             sb.AppendLine("public static byte[] Palette = new byte[32];");
             sb.AppendLine("public static byte[] Screen = new byte[256 * 240 * 4];");
             sb.AppendLine("public static int FrameCount;");
+            sb.AppendLine("public static int CurrentScanline;");
+            sb.AppendLine("public static int CurrentCycle;");
             sb.AppendLine();
 
             sb.AppendLine("public static int[] NesPalette = new int[64]");
@@ -2972,8 +3067,7 @@ namespace NES2ILRecomp
             sb.AppendLine("{");
             sb.AppendLine("    Ctrl = Mask = OamAddr = ScrollX = ScrollY = 0;");
             sb.AppendLine("    Status = 0x80;");
-            sb.AppendLine("    AddrToggle = false;");
-            sb.AppendLine("    ScrollToggle = false;");
+            sb.AppendLine("    WToggle = false;");
             sb.AppendLine("    VRamAddr = 0;");
             sb.AppendLine("    DataBuffer = 0;");
             sb.AppendLine("    FrameCount = 0;");
@@ -2982,8 +3076,8 @@ namespace NES2ILRecomp
             sb.AppendLine("    Array.Clear(Oam, 0, Oam.Length);");
             sb.AppendLine("    Array.Clear(Palette, 0, Palette.Length);");
             sb.AppendLine("    Array.Clear(Screen, 0, Screen.Length);");
-            sb.AppendLine("    for (int i = 0; i < Palette.Length; i++) Palette[i] = (byte)(0x01 + (i * 3) % 0x3D);");
             sb.AppendLine("    Palette[0] = 0x0F;");
+            sb.AppendLine("    for (int i = 1; i < Palette.Length; i++) Palette[i] = 0x0F;");
             sb.AppendLine("}");
             sb.AppendLine();
 
@@ -2995,9 +3089,7 @@ namespace NES2ILRecomp
             sb.AppendLine("        {");
             sb.AppendLine("            byte s = Status;");
             sb.AppendLine("            Status = (byte)(Status & 0x7F);");
-            sb.AppendLine("            AddrToggle = false;");
-            sb.AppendLine("            ScrollToggle = false;");
-            sb.AppendLine("            Thread.Sleep(0);");
+            sb.AppendLine("            WToggle = false;");
             sb.AppendLine("            return s;");
             sb.AppendLine("        }");
             sb.AppendLine();
@@ -3045,15 +3137,15 @@ namespace NES2ILRecomp
             sb.AppendLine("            break;");
             sb.AppendLine();
             sb.AppendLine("        case 5:");
-            sb.AppendLine("            if (!ScrollToggle) ScrollX = value;");
+            sb.AppendLine("            if (!WToggle) ScrollX = value;");
             sb.AppendLine("            else ScrollY = value;");
-            sb.AppendLine("            ScrollToggle = !ScrollToggle;");
+            sb.AppendLine("            WToggle = !WToggle;");
             sb.AppendLine("            break;");
             sb.AppendLine();
             sb.AppendLine("        case 6:");
-            sb.AppendLine("            if (!AddrToggle) VRamAddr = (ushort)((value & 0x3F) << 8);");
+            sb.AppendLine("            if (!WToggle) VRamAddr = (ushort)((value & 0x3F) << 8);");
             sb.AppendLine("            else VRamAddr = (ushort)((VRamAddr & 0xFF00) | value);");
-            sb.AppendLine("            AddrToggle = !AddrToggle;");
+            sb.AppendLine("            WToggle = !WToggle;");
             sb.AppendLine("            break;");
             sb.AppendLine();
             sb.AppendLine("        case 7:");
@@ -3071,6 +3163,7 @@ namespace NES2ILRecomp
             sb.AppendLine("    {");
             sb.AppendLine("        Oam[i] = Memory.Read((ushort)(baseAddr + i));");
             sb.AppendLine("    }");
+            sb.AppendLine("    OamAddr = 0;");
             sb.AppendLine("}");
             sb.AppendLine();
 
@@ -3147,43 +3240,88 @@ namespace NES2ILRecomp
 
             sb.AppendLine("public static void RenderToBitmap(Bitmap target)");
             sb.AppendLine("{");
-            sb.AppendLine("    lock (Runtime.FrameLock)");
-            sb.AppendLine("    {");
-            sb.AppendLine("        RenderScreen();");
-            sb.AppendLine();
-            sb.AppendLine("        Rectangle rc = new Rectangle(0, 0, 256, 240);");
-            sb.AppendLine("        BitmapData data = target.LockBits(rc, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);");
-            sb.AppendLine();
-            sb.AppendLine("        if (data.Stride == 256 * 4)");
-            sb.AppendLine("        {");
-            sb.AppendLine("            Marshal.Copy(Screen, 0, data.Scan0, Screen.Length);");
-            sb.AppendLine("        }");
-            sb.AppendLine("        else");
-            sb.AppendLine("        {");
-            sb.AppendLine("            for (int y = 0; y < 240; y++)");
-            sb.AppendLine("            {");
-            sb.AppendLine("                IntPtr dst = new IntPtr(data.Scan0.ToInt64() + y * data.Stride);");
-            sb.AppendLine("                Marshal.Copy(Screen, y * 256 * 4, dst, 256 * 4);");
-            sb.AppendLine("            }");
-            sb.AppendLine("        }");
-            sb.AppendLine();
-            sb.AppendLine("        target.UnlockBits(data);");
-            sb.AppendLine("    }");
             sb.AppendLine("}");
             sb.AppendLine();
-
             sb.AppendLine("public static void RenderScreen()");
             sb.AppendLine("{");
             sb.AppendLine("    int backdrop = Palette[0] & 0x3F;");
             sb.AppendLine("    FillScreen(backdrop);");
-            sb.AppendLine();
             sb.AppendLine("    bool showBG = (Mask & 0x08) != 0;");
             sb.AppendLine("    bool showSpr = (Mask & 0x10) != 0;");
-            sb.AppendLine();
-            sb.AppendLine("    // Если маска еще не настроена, показываем debug-рендер.");
-            sb.AppendLine("    // DEBUG: force render even if rendering disabled");
-            sb.AppendLine("    RenderBackground();");
-            sb.AppendLine("    RenderSprites();");
+            sb.AppendLine("    if (!showBG && !showSpr) return;");
+            sb.AppendLine("    int scrollX = ScrollX;");
+            sb.AppendLine("    int scrollY = ScrollY;");
+            sb.AppendLine("    int nameBase = MirrorName((ushort)(0x2000 + (Ctrl & 0x03) * 0x400));");
+            sb.AppendLine("    int patternBase = (Ctrl & 0x10) != 0 ? 0x1000 : 0x0000;");
+            sb.AppendLine("    int sprPatternBase = (Ctrl & 0x08) != 0 ? 0x1000 : 0x0000;");
+            sb.AppendLine("    bool bigSpr = (Ctrl & 0x20) != 0;");
+            sb.AppendLine("    if (showBG)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        for (int y = 0; y < 240; y++)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            int srcY = (y + scrollY) % 240;");
+            sb.AppendLine("            int tileY = srcY >> 3;");
+            sb.AppendLine("            int py = srcY & 7;");
+            sb.AppendLine("            for (int x = 0; x < 256; x++)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                int srcX = (x + scrollX) & 0xFF;");
+            sb.AppendLine("                int tileX = srcX >> 3;");
+            sb.AppendLine("                int px = srcX & 7;");
+            sb.AppendLine("                int tileAddr = nameBase + tileY * 32 + tileX;");
+            sb.AppendLine("                byte tile = VRam[tileAddr];");
+            sb.AppendLine("                int pal = GetAttributePalette(nameBase, tileX, tileY);");
+            sb.AppendLine("                int color = GetPatternPixel(patternBase, tile, px, py);");
+            sb.AppendLine("                if (color == 0) continue;");
+            sb.AppendLine("                int finalColor = GetBackgroundColor(pal, color);");
+            sb.AppendLine("                SetPixel(x, y, finalColor);");
+            sb.AppendLine("            }");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine("    if (showSpr)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        for (int i = 63; i >= 0; i--)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            int sy = Oam[i * 4] + 1;");
+            sb.AppendLine("            int tile = Oam[i * 4 + 1];");
+            sb.AppendLine("            int attr = Oam[i * 4 + 2];");
+            sb.AppendLine("            int sx = Oam[i * 4 + 3];");
+            sb.AppendLine("            if (sy >= 240 || sy <= -16) continue;");
+            sb.AppendLine("            int pal = attr & 3;");
+            sb.AppendLine("            bool flipH = (attr & 0x40) != 0;");
+            sb.AppendLine("            bool flipV = (attr & 0x80) != 0;");
+            sb.AppendLine("            int height = bigSpr ? 16 : 8;");
+            sb.AppendLine("            int tileIndex = tile;");
+            sb.AppendLine("            int patBase = sprPatternBase;");
+            sb.AppendLine("            if (bigSpr)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                patBase = (tile & 1) != 0 ? 0x1000 : 0x0000;");
+            sb.AppendLine("                tileIndex = tile & 0xFE;");
+            sb.AppendLine("            }");
+            sb.AppendLine("            for (int py = 0; py < height; py++)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                int screenY = sy + py;");
+            sb.AppendLine("                if ((uint)screenY >= 240) continue;");
+            sb.AppendLine("                int srcY = flipV ? (height - 1 - py) : py;");
+            sb.AppendLine("                int t = tileIndex;");
+            sb.AppendLine("                int row = srcY;");
+            sb.AppendLine("                if (bigSpr && srcY >= 8) { t = tileIndex + 1; row = srcY - 8; }");
+            sb.AppendLine("                for (int px = 0; px < 8; px++)");
+            sb.AppendLine("                {");
+            sb.AppendLine("                    int screenX = sx + px;");
+            sb.AppendLine("                    if ((uint)screenX >= 256) continue;");
+            sb.AppendLine("                    int srcX = flipH ? (7 - px) : px;");
+            sb.AppendLine("                    int color = GetPatternPixel(patBase, t, srcX, row);");
+            sb.AppendLine("                    if (color == 0) continue;");
+            sb.AppendLine("                    if (i == 0 && screenY > 0 && (Mask & 0x08) != 0)");
+            sb.AppendLine("                    {");
+            sb.AppendLine("                        Status = (byte)(Status | 0x40);");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    int idx = 0x11 + pal * 4 + (color - 1);");
+            sb.AppendLine("                    SetPixel(screenX, screenY, Palette[idx & 0x1F] & 0x3F);");
+            sb.AppendLine("                }");
+            sb.AppendLine("            }");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
             sb.AppendLine("}");
             sb.AppendLine();
 
@@ -3296,15 +3434,24 @@ namespace NES2ILRecomp
 
             sb.AppendLine("static int GetPatternPixel(int patternBase, int tile, int px, int py)");
             sb.AppendLine("{");
-            sb.AppendLine("    int len = Runtime.ChrRom.Length;");
-            sb.AppendLine("    if (len == 0) return 0;");
-            sb.AppendLine();
-            sb.AppendLine("    int addr = (patternBase + tile * 16 + py) % len;");
-            sb.AppendLine("    int addr2 = (addr + 8) % len;");
-            sb.AppendLine();
-            sb.AppendLine("    byte low = Runtime.ChrRom[addr];");
-            sb.AppendLine("    byte high = Runtime.ChrRom[addr2];");
-            sb.AppendLine();
+            sb.AppendLine("    int addr = patternBase + tile * 16 + py;");
+            sb.AppendLine("    int addr2 = addr + 8;");
+            sb.AppendLine("    byte low, high;");
+            sb.AppendLine("    if (Runtime.ChrRom.Length > 0)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        int len = Runtime.ChrRom.Length;");
+            sb.AppendLine("        addr = addr % len;");
+            sb.AppendLine("        addr2 = addr2 % len;");
+            sb.AppendLine("        low = Runtime.ChrRom[addr];");
+            sb.AppendLine("        high = Runtime.ChrRom[addr2];");
+            sb.AppendLine("    }");
+            sb.AppendLine("    else");
+            sb.AppendLine("    {");
+            sb.AppendLine("        addr &= 0x1FFF;");
+            sb.AppendLine("        addr2 = (addr + 8) & 0x1FFF;");
+            sb.AppendLine("        low = VRam[addr];");
+            sb.AppendLine("        high = VRam[addr2];");
+            sb.AppendLine("    }");
             sb.AppendLine("    int bit = 7 - px;");
             sb.AppendLine("    return ((low >> bit) & 1) | (((high >> bit) & 1) << 1);");
             sb.AppendLine("}");
@@ -3399,6 +3546,9 @@ namespace NES2ILRecomp
         {
             sb.AppendLine("static class Apu");
             sb.AppendLine("{");
+            sb.AppendLine("public static volatile int Env1, Env2, EnvN;");
+            sb.AppendLine("public static volatile int EnvDiv1, EnvDiv2, EnvDivN;");
+            sb.AppendLine("public static volatile bool EnvStart1, EnvStart2, EnvStartN;");
             sb.AppendLine("public static byte[] Regs = new byte[0x18];");
             sb.AppendLine("public static volatile int Period1, Period2, PeriodT;");
             sb.AppendLine("public static volatile int Len1, Len2, LenT, LenN;");
@@ -3408,6 +3558,9 @@ namespace NES2ILRecomp
             sb.AppendLine("public static readonly int[] LengthTable = new int[32] {10,254,20,2,40,4,80,6,160,8,60,10,14,12,26,14,12,16,24,18,48,20,96,22,192,24,72,26,16,28,32,30};");
             sb.AppendLine("public static void Reset()");
             sb.AppendLine("{");
+            sb.AppendLine("    Env1 = Env2 = EnvN = 0;");
+            sb.AppendLine("    EnvDiv1 = EnvDiv2 = EnvDivN = 0;");
+            sb.AppendLine("    EnvStart1 = EnvStart2 = EnvStartN = false;");
             sb.AppendLine("    Array.Clear(Regs, 0, Regs.Length);");
             sb.AppendLine("    Period1 = Period2 = PeriodT = 0; Len1 = Len2 = LenT = LenN = 0; LinT = 0; LinReload = false; _lenDiv = 0;");
             sb.AppendLine("    Audio.TryStart();");
@@ -3426,10 +3579,10 @@ namespace NES2ILRecomp
             sb.AppendLine("    if (addr >= 0x4000 && addr <= 0x4017) Regs[addr - 0x4000] = value;");
             sb.AppendLine("    switch (addr)");
             sb.AppendLine("    {");
-            sb.AppendLine("        case 0x4003: Period1 = ((value & 7) << 8) | Regs[0x02]; if ((Regs[0x00] & 0x20) == 0) Len1 = LengthTable[(value >> 3) & 0x1F]; break;");
-            sb.AppendLine("        case 0x4007: Period2 = ((value & 7) << 8) | Regs[0x06]; if ((Regs[0x04] & 0x20) == 0) Len2 = LengthTable[(value >> 3) & 0x1F]; break;");
-            sb.AppendLine("        case 0x400B: PeriodT = ((value & 7) << 8) | Regs[0x0A]; if ((Regs[0x08] & 0x80) == 0) LenT = LengthTable[(value >> 3) & 0x1F]; LinReload = true; break;");
-            sb.AppendLine("        case 0x400F: if ((Regs[0x0C] & 0x20) == 0) LenN = LengthTable[(value >> 3) & 0x1F]; break;");
+            sb.AppendLine("        case 0x4003: Period1 = ((value & 7) << 8) | Regs[0x02]; Len1 = LengthTable[(value >> 3) & 0x1F]; EnvStart1 = true; break;");
+            sb.AppendLine("        case 0x4007: Period2 = ((value & 7) << 8) | Regs[0x06]; Len2 = LengthTable[(value >> 3) & 0x1F]; EnvStart2 = true; break;");
+            sb.AppendLine("        case 0x400B: PeriodT = ((value & 7) << 8) | Regs[0x0A]; LenT = LengthTable[(value >> 3) & 0x1F]; LinReload = true; break;");
+            sb.AppendLine("        case 0x400F: LenN = LengthTable[(value >> 3) & 0x1F]; EnvStartN = true; break;");
             sb.AppendLine("        case 0x4015:");
             sb.AppendLine("            if ((value & 1) == 0) Len1 = 0;");
             sb.AppendLine("            if ((value & 2) == 0) Len2 = 0;");
@@ -3441,6 +3594,12 @@ namespace NES2ILRecomp
             sb.AppendLine("}");
             sb.AppendLine("public static void Clock240()");
             sb.AppendLine("{");
+            sb.AppendLine("    if (EnvStart1) { EnvStart1 = false; Env1 = 15; EnvDiv1 = 0; }");
+            sb.AppendLine("    else { if (++EnvDiv1 >= ((Regs[0x00] & 0x0F) + 1)) { EnvDiv1 = 0; if (Env1 > 0) Env1--; else if ((Regs[0x00] & 0x20) != 0) Env1 = 15; } }");
+            sb.AppendLine("    if (EnvStart2) { EnvStart2 = false; Env2 = 15; EnvDiv2 = 0; }");
+            sb.AppendLine("    else { if (++EnvDiv2 >= ((Regs[0x04] & 0x0F) + 1)) { EnvDiv2 = 0; if (Env2 > 0) Env2--; else if ((Regs[0x04] & 0x20) != 0) Env2 = 15; } }");
+            sb.AppendLine("    if (EnvStartN) { EnvStartN = false; EnvN = 15; EnvDivN = 0; }");
+            sb.AppendLine("    else { if (++EnvDivN >= ((Regs[0x0C] & 0x0F) + 1)) { EnvDivN = 0; if (EnvN > 0) EnvN--; else if ((Regs[0x0C] & 0x20) != 0) EnvN = 15; } }");
             sb.AppendLine("    if (LinReload) LinT = Regs[0x08] & 0x7F;");
             sb.AppendLine("    else if (LinT > 0) LinT--;");
             sb.AppendLine("    if ((Regs[0x08] & 0x80) == 0) LinReload = false;");
@@ -3466,9 +3625,23 @@ namespace NES2ILRecomp
         {
             sb.AppendLine("static class MapperStub");
             sb.AppendLine("{");
-            sb.AppendLine("public static void Reset() { }");
-            sb.AppendLine("public static byte Read(ushort addr) { return 0x40; }");
-            sb.AppendLine("public static void Write(ushort addr, byte value) { }");
+            sb.AppendLine("    public static int PrgBank = 0;");
+            sb.AppendLine("    public static int ChrBank0 = 0, ChrBank1 = 0;");
+            sb.AppendLine("    public static void Reset() { PrgBank = 0; ChrBank0 = 0; ChrBank1 = 0; }");
+            sb.AppendLine("    public static byte Read(ushort addr)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        if (Runtime.Mapper == 0) return 0x40;");
+            sb.AppendLine("        return 0x40;");
+            sb.AppendLine("    }");
+            sb.AppendLine("    public static void Write(ushort addr, byte value)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        if (Runtime.Mapper == 0) return;");
+            sb.AppendLine("        if (Runtime.Mapper == 2)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            PrgBank = value & 0x0F;");
+            sb.AppendLine("            return;");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
             sb.AppendLine("}");
             sb.AppendLine();
         }
@@ -3499,7 +3672,8 @@ namespace NES2ILRecomp
             sb.AppendLine("    static GCHandle[] _pin = new GCHandle[2];");
             sb.AppendLine("    static bool[] _queued = new bool[2];");
             sb.AppendLine("    static float _ph1, _ph2, _phT;");
-            sb.AppendLine("    static int _noise = 1;");
+            sb.AppendLine("    static float _dc;");
+            sb.AppendLine("    static int _noise = 0x7FFF;");
             sb.AppendLine("    static int _noiseCounter;");
             sb.AppendLine("    static int _qAcc;");
             sb.AppendLine("    public static volatile int DbgAlive;");
@@ -3507,6 +3681,10 @@ namespace NES2ILRecomp
             sb.AppendLine("    public static volatile int DbgWrErr;");
             sb.AppendLine("    static readonly int[] NoisePeriod = new int[16] {4,8,16,32,64,96,128,160,202,254,380,508,762,1016,2034,4068};");
             sb.AppendLine("    static readonly float[] DutyF = new float[4] {0.125f,0.25f,0.5f,0.75f};");
+            sb.AppendLine("    static readonly int[] TriangleWave = new int[32] {");
+            sb.AppendLine("        15,14,13,12,11,10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,");
+            sb.AppendLine("         0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15");
+            sb.AppendLine("    };");
             sb.AppendLine();
             sb.AppendLine("    public static void OnStatusChange(byte v) { }");
             sb.AppendLine();
@@ -3556,6 +3734,20 @@ namespace NES2ILRecomp
             sb.AppendLine("        catch { }");
             sb.AppendLine("    }");
             sb.AppendLine();
+            sb.AppendLine("    public static void TryRestart()");
+            sb.AppendLine("    {");
+            sb.AppendLine("        // Старый поток/waveOut могли зависнуть в native. Закрываем их в");
+            sb.AppendLine("        // ОТДЕЛЬНОМ thread с таймаутом, чтобы не зависнуть самим, потом");
+            sb.AppendLine("        // открываем заново. Вызывается только когда звук уже мёртв.");
+            sb.AppendLine("        try");
+            sb.AppendLine("        {");
+            sb.AppendLine("            Thread t = new Thread(delegate() { try { TryStop(); } catch { } });");
+            sb.AppendLine("            t.IsBackground = true; t.Start(); t.Join(800);");
+            sb.AppendLine("        }");
+            sb.AppendLine("        catch { }");
+            sb.AppendLine("        try { _open = false; _run = false; TryStart(); } catch { }");
+            sb.AppendLine("    }");
+            sb.AppendLine();
             sb.AppendLine("    static void ThreadProc()");
             sb.AppendLine("    {");
             sb.AppendLine("        int hdrSize; try { hdrSize = Marshal.SizeOf(typeof(WAVEHDR)); } catch { hdrSize = 32; }");
@@ -3577,6 +3769,7 @@ namespace NES2ILRecomp
             sb.AppendLine("                }");
             sb.AppendLine("                stuck = 0;");
             sb.AppendLine("                Fill(_buf[idx]);");
+            sb.AppendLine("                DbgWrErr = 0;");
             sb.AppendLine("                int wr = waveOutWrite(_hwo, ref _hdr[idx], hdrSize);");
             sb.AppendLine("                if (wr == 0) { _queued[idx] = true; idx = 1 - idx; }");
             sb.AppendLine("                else { DbgWrErr = wr; Thread.Sleep(2); }");
@@ -3596,22 +3789,31 @@ namespace NES2ILRecomp
             sb.AppendLine("        float f1 = per1 > 8 ? (1789773f / (16f * per1)) : 0f;");
             sb.AppendLine("        float f2 = per2 > 8 ? (1789773f / (16f * per2)) : 0f;");
             sb.AppendLine("        float fT = perT > 1 ? (1789773f / (32f * perT)) : 0f;");
-            sb.AppendLine("        int v1 = Apu.Sq1On() ? (Apu.Regs[0] & 0xF) : 0;");
-            sb.AppendLine("        int v2 = Apu.Sq2On() ? (Apu.Regs[4] & 0xF) : 0;");
+            sb.AppendLine("        int v1 = Apu.Sq1On() ? ((Apu.Regs[0] & 0x10) != 0 ? (Apu.Regs[0] & 0x0F) : Apu.Env1) : 0;");
+            sb.AppendLine("        int v2 = Apu.Sq2On() ? ((Apu.Regs[4] & 0x10) != 0 ? (Apu.Regs[4] & 0x0F) : Apu.Env2) : 0;");
             sb.AppendLine("        int vT = Apu.TriOn() ? 12 : 0;");
-            sb.AppendLine("        int vN = Apu.NoiOn() ? (Apu.Regs[0xC] & 0xF) : 0;");
+            sb.AppendLine("        int vN = Apu.NoiOn() ? ((Apu.Regs[0xC] & 0x10) != 0 ? (Apu.Regs[0xC] & 0x0F) : Apu.EnvN) : 0;");
             sb.AppendLine("        float d1f = DutyF[(Apu.Regs[0] >> 6) & 3];");
             sb.AppendLine("        float d2f = DutyF[(Apu.Regs[4] >> 6) & 3];");
             sb.AppendLine("        DbgV1 = v1; DbgV2 = v2; DbgVT = vT; DbgVN = vN;");
             sb.AppendLine("        for (int i = 0; i < b.Length; i++)");
             sb.AppendLine("        {");
-            sb.AppendLine("            int s = 0;");
-            sb.AppendLine("            if (v1 != 0 && f1 > 0) { _ph1 += f1 / SR; if (_ph1 >= 1f) _ph1 -= 1f; if (_ph1 < d1f) s += v1; }");
-            sb.AppendLine("            if (v2 != 0 && f2 > 0) { _ph2 += f2 / SR; if (_ph2 >= 1f) _ph2 -= 1f; if (_ph2 < d2f) s += v2; }");
-            sb.AppendLine("            if (vT != 0 && fT > 0) { _phT += fT / SR; if (_phT >= 1f) _phT -= 1f; s += (_phT < 0.5f ? vT : -vT); }");
-            sb.AppendLine("            if (vN != 0) { _noiseCounter++; if (_noiseCounter >= nper) { _noiseCounter = 0; int bit = (_noise & 1) ^ ((_noise >> nmode) & 1); _noise = (_noise >> 1) | (bit << 14); } if ((_noise & 1) == 0) s += vN; }");
-            sb.AppendLine("            int sample = 128 + s * 2;");
-            sb.AppendLine("            if (sample < 0) sample = 0; if (sample > 255) sample = 255;");
+            sb.AppendLine("            // Колеблющийся выход каналов (а НЕ константы v1+v2!).");
+            sb.AppendLine("            int pulse = 0;");
+            sb.AppendLine("            if (v1 != 0 && f1 > 0f) { _ph1 += f1 / SR; if (_ph1 >= 1f) _ph1 -= 1f; if (_ph1 < d1f) pulse += v1; }");
+            sb.AppendLine("            if (v2 != 0 && f2 > 0f) { _ph2 += f2 / SR; if (_ph2 >= 1f) _ph2 -= 1f; if (_ph2 < d2f) pulse += v2; }");
+            sb.AppendLine("            float tin = 0f;");
+            sb.AppendLine("            if (vT != 0 && fT > 0f) { _phT += fT / SR; if (_phT >= 1f) _phT -= 1f; int ti = (int)(_phT * 32f); if (ti >= 32) ti = 31; tin += TriangleWave[ti] / 8227f; }");
+            sb.AppendLine("            if (vN != 0) { _noiseCounter++; if (_noiseCounter >= nper) { _noiseCounter = 0; int bit = (_noise & 1) ^ ((_noise >> nmode) & 1); _noise = (_noise >> 1) | (bit << 14); } if ((_noise & 1) == 0) tin += vN / 12241f; }");
+            sb.AppendLine("            // Нелинейный микшер blargg от ТЕКУЩИХ выходов pulse/tin.");
+            sb.AppendLine("            float pulseOut = (pulse == 0) ? 0f : (95.52f / (8128f / pulse + 100f));");
+            sb.AppendLine("            float tndOut   = (tin == 0f) ? 0f : (159.79f / (1f / tin + 100f));");
+            sb.AppendLine("            float outv = pulseOut + tndOut;");
+            sb.AppendLine("            // DC-blocker: вычитаем среднее -> нет гула и стартового щелчка, центр = 128.");
+            sb.AppendLine("            _dc += (outv - _dc) * 0.002f;");
+            sb.AppendLine("            int sample = 128 + (int)((outv - _dc) * 350f);");
+            sb.AppendLine("            if (sample < 0) sample = 0;");
+            sb.AppendLine("            if (sample > 255) sample = 255;");
             sb.AppendLine("            b[i] = (byte)sample;");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
@@ -3624,9 +3826,12 @@ namespace NES2ILRecomp
             sb.AppendLine("class PpuForm : Form");
             sb.AppendLine("{");
             sb.AppendLine("private System.Windows.Forms.Timer _timer;");
-            sb.AppendLine("private Bitmap _back;");
+            sb.AppendLine("private Bitmap _front;");
+            sb.AppendLine("private Bitmap _work;");
+            sb.AppendLine("private Thread _renderThread;");
+            sb.AppendLine("private volatile bool _closing;");
+            sb.AppendLine("private int _lastLogTick;");
             sb.AppendLine();
-
             sb.AppendLine("public PpuForm()");
             sb.AppendLine("{");
             sb.AppendLine("    Text = \"NES Lifted: \" + Runtime.GameName;");
@@ -3634,72 +3839,140 @@ namespace NES2ILRecomp
             sb.AppendLine("    FormBorderStyle = FormBorderStyle.FixedSingle;");
             sb.AppendLine("    MaximizeBox = false;");
             sb.AppendLine("    StartPosition = FormStartPosition.CenterScreen;");
-            sb.AppendLine();
-            sb.AppendLine("    SetStyle(");
-            sb.AppendLine("        ControlStyles.AllPaintingInWmPaint |");
-            sb.AppendLine("        ControlStyles.UserPaint |");
-            sb.AppendLine("        ControlStyles.OptimizedDoubleBuffer,");
-            sb.AppendLine("        true);");
-            sb.AppendLine();
-            sb.AppendLine("    _back = new Bitmap(256, 240, PixelFormat.Format32bppArgb);");
+            sb.AppendLine("    SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);");
+            sb.AppendLine("    _front = new Bitmap(256, 240, PixelFormat.Format32bppArgb);");
+            sb.AppendLine("    _work  = new Bitmap(256, 240, PixelFormat.Format32bppArgb);");
+            sb.AppendLine("    _lastLogTick = Environment.TickCount;");
             sb.AppendLine();
             sb.AppendLine("    _timer = new System.Windows.Forms.Timer();");
             sb.AppendLine("    _timer.Interval = 16;");
-            sb.AppendLine();
             sb.AppendLine("    _timer.Tick += delegate(object sender, EventArgs e)");
             sb.AppendLine("    {");
             sb.AppendLine("        Ppu.FrameCount++;");
-            sb.AppendLine();
-            sb.AppendLine("        // VBlank + clear sprite0 hit at frame start.");
             sb.AppendLine("        Ppu.Status = (byte)((Ppu.Status & 0xBF) | 0x80);");
-            sb.AppendLine();
-            sb.AppendLine("        // Если игра включила NMI в PPUCTRL, симулируем NMI в следующем safe-point.");
             sb.AppendLine("        if ((Ppu.Ctrl & 0x80) != 0 && !Runtime.InNmi) Runtime.NmiPending = true;");
-            sb.AppendLine();
-            sb.AppendLine("        Ppu.RenderToBitmap(_back);");
             sb.AppendLine("        Invalidate();");
             sb.AppendLine("    };");
-            sb.AppendLine();
             sb.AppendLine("    _timer.Start();");
             sb.AppendLine();
+            sb.AppendLine("    _renderThread = new Thread(new ThreadStart(RenderLoop));");
+            sb.AppendLine("    _renderThread.IsBackground = true;");
+            sb.AppendLine("    _renderThread.Priority = ThreadPriority.BelowNormal;");
+            sb.AppendLine("    _renderThread.Start();");
+            sb.AppendLine();
             sb.AppendLine("    this.KeyPreview = true;");
-            sb.AppendLine("    this.KeyDown += delegate(object s, KeyEventArgs ke) { SetJoyKey(ke.KeyCode, true); ke.SuppressKeyPress = true; };");
+            sb.AppendLine("    this.KeyDown += delegate(object s, KeyEventArgs ke)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        // H / F1 - показать/скрыть полный OSD на экране.");
+            sb.AppendLine("        if (ke.KeyCode == Keys.H || ke.KeyCode == Keys.F1) { Runtime.OsdFull = !Runtime.OsdFull; ke.SuppressKeyPress = true; return; }");
+            sb.AppendLine("        SetJoyKey(ke.KeyCode, true); ke.SuppressKeyPress = true;");
+            sb.AppendLine("    };");
             sb.AppendLine("    this.KeyUp += delegate(object s, KeyEventArgs ke) { SetJoyKey(ke.KeyCode, false); };");
             sb.AppendLine("}");
             sb.AppendLine();
-
+            sb.AppendLine("void RenderLoop()");
+            sb.AppendLine("{");
+            sb.AppendLine("    while (!_closing)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        try");
+            sb.AppendLine("        {");
+            sb.AppendLine("            Ppu.RenderScreen();");
+            sb.AppendLine("            BlitTo(_work);");
+            sb.AppendLine("            DrawOsd(_work);");
+            sb.AppendLine("            Bitmap ready = _work;");
+            sb.AppendLine("            _work = Interlocked.Exchange(ref _front, ready);");
+            sb.AppendLine("            // Консолидированный лог состояния - НЕ каждый кадр, а раз в 5 сек.");
+            sb.AppendLine("            int now = Environment.TickCount;");
+            sb.AppendLine("            if (unchecked(now - _lastLogTick) >= 5000) { _lastLogTick = now; WriteStateLog(); }");
+            sb.AppendLine("            // Watchdog звука: если аудио-поток не обновлял DbgAlive 3 сек -");
+            sb.AppendLine("            // он завис/умер. Пересоздаём звук (безопасно: только когда мёртв).");
+            sb.AppendLine("            if (Audio.DbgAlive != 0 && unchecked(now - Audio.DbgAlive) > 3000) Audio.TryRestart();");
+            sb.AppendLine("            Thread.Sleep(4);");
+            sb.AppendLine("        }");
+            sb.AppendLine("        catch { try { Thread.Sleep(16); } catch { } }");
+            sb.AppendLine("    }");
+            sb.AppendLine("}");
+            sb.AppendLine();
+            sb.AppendLine("void BlitTo(Bitmap bmp)");
+            sb.AppendLine("{");
+            sb.AppendLine("    if (bmp == null) return;");
+            sb.AppendLine("    Rectangle rc = new Rectangle(0, 0, 256, 240);");
+            sb.AppendLine("    BitmapData data = bmp.LockBits(rc, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);");
+            sb.AppendLine("    try");
+            sb.AppendLine("    {");
+            sb.AppendLine("        if (data.Stride == 256 * 4) Marshal.Copy(Ppu.Screen, 0, data.Scan0, Ppu.Screen.Length);");
+            sb.AppendLine("        else for (int y = 0; y < 240; y++) { IntPtr dst = new IntPtr(data.Scan0.ToInt64() + y * data.Stride); Marshal.Copy(Ppu.Screen, y * 256 * 4, dst, 256 * 4); }");
+            sb.AppendLine("    }");
+            sb.AppendLine("    finally { bmp.UnlockBits(data); }");
+            sb.AppendLine("}");
+            sb.AppendLine();
+            sb.AppendLine("static string[] OsdLines()");
+            sb.AppendLine("{");
+            sb.AppendLine("    string[] L = new string[6];");
+            sb.AppendLine("    L[0] = string.Format(\"F:{0} I:{1} PC:{2:X4} T:{3}\", Ppu.FrameCount, Runtime.InsCount, Runtime.LastPC, Runtime.TrapCount);");
+            sb.AppendLine("    L[1] = string.Format(\"CTRL:{0:X2} MASK:{1:X2} ST:{2:X2} VRAM:{3:X4}\", Ppu.Ctrl, Ppu.Mask, Ppu.Status, Ppu.VRamAddr);");
+            sb.AppendLine("    L[2] = string.Format(\"CPU:{0} NMI:{1}/{2} A:{3:X2} X:{4:X2} Y:{5:X2} SP:{6:X2} P:{7:X2}\", Runtime.CpuState, Runtime.NmiPending ? 1 : 0, Runtime.InNmi ? 1 : 0, Runtime.A, Runtime.X, Runtime.Y, Runtime.SP, Runtime.P);");
+            sb.AppendLine("    L[3] = string.Format(\"SND {0:X2} L{1}/{2}/{3}/{4}\", Apu.Regs[0x15], Apu.Len1, Apu.Len2, Apu.LenT, Apu.LenN);");
+            sb.AppendLine("    L[4] = string.Format(\"v{0}/{1}/{2}/{3} a:{4} w:{5}\", Audio.DbgV1, Audio.DbgV2, Audio.DbgVT, Audio.DbgVN, Audio.DbgAlive & 0xFFFF, Audio.DbgWrErr);");
+            sb.AppendLine("    L[5] = string.Format(\"R{0:X2}/{1:X2}/{2:X2}/{3:X2} E{4}/{5}/{6} LT{7}\", Apu.Regs[0x00], Apu.Regs[0x04], Apu.Regs[0x08], Apu.Regs[0x0C], Apu.Env1, Apu.Env2, Apu.EnvN, Apu.LinT);");
+            sb.AppendLine("    return L;");
+            sb.AppendLine("}");
+            sb.AppendLine();
+            sb.AppendLine("void DrawOsd(Bitmap bmp)");
+            sb.AppendLine("{");
+            sb.AppendLine("    if (bmp == null) return;");
+            sb.AppendLine("    try");
+            sb.AppendLine("    {");
+            sb.AppendLine("        using (Graphics g = Graphics.FromImage(bmp))");
+            sb.AppendLine("        {");
+            sb.AppendLine("            if (Runtime.OsdFull)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                string[] L = OsdLines();");
+            sb.AppendLine("                g.FillRectangle(Brushes.Black, 0, 0, 256, 86);");
+            sb.AppendLine("                for (int i = 0; i < L.Length; i++) g.DrawString(L[i], SystemFonts.DefaultFont, Brushes.Yellow, 2, 2 + i * 13);");
+            sb.AppendLine("            }");
+            sb.AppendLine("            else");
+            sb.AppendLine("            {");
+            sb.AppendLine("                // Компакт: одна строка. Маркер: ERR если трап, snd если каналы включены, иначе '-'.");
+            sb.AppendLine("                string mark = Runtime.LastError != null ? \"ERR\" : ((Apu.Regs[0x15] != 0) ? \"snd\" : \"-\");");
+            sb.AppendLine("                string c = string.Format(\"F:{0} I:{1} T:{2} {3}\", Ppu.FrameCount, Runtime.InsCount, Runtime.TrapCount, mark);");
+            sb.AppendLine("                g.FillRectangle(Brushes.Black, 0, 0, 256, 15);");
+            sb.AppendLine("                g.DrawString(c, SystemFonts.DefaultFont, Brushes.Yellow, 2, 1);");
+            sb.AppendLine("            }");
+            sb.AppendLine("            if (!string.IsNullOrEmpty(Runtime.LastError))");
+            sb.AppendLine("            {");
+            sb.AppendLine("                string msg = Runtime.LastError; if (msg.Length > 56) msg = msg.Substring(0, 56);");
+            sb.AppendLine("                g.FillRectangle(Brushes.Black, 0, 222, 256, 18);");
+            sb.AppendLine("                g.DrawString(msg, SystemFonts.DefaultFont, Brushes.Red, 2, 224);");
+            sb.AppendLine("            }");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine("    catch { }");
+            sb.AppendLine("}");
+            sb.AppendLine();
+            sb.AppendLine("void WriteStateLog()");
+            sb.AppendLine("{");
+            sb.AppendLine("    try");
+            sb.AppendLine("    {");
+            sb.AppendLine("        string[] L = OsdLines();");
+            sb.AppendLine("        string body = string.Join(Environment.NewLine, L);");
+            sb.AppendLine("        string block = \"--- \" + DateTime.Now.ToString(\"s\") + \" ---\" + Environment.NewLine + body + Environment.NewLine + (string.IsNullOrEmpty(Runtime.LastError) ? \"\" : \"ERR: \" + Runtime.LastError + Environment.NewLine) + Environment.NewLine;");
+            sb.AppendLine("        string path = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, \"state.log\");");
+            sb.AppendLine("        System.IO.File.AppendAllText(path, block);");
+            sb.AppendLine("    }");
+            sb.AppendLine("    catch { }");
+            sb.AppendLine("}");
+            sb.AppendLine();
             sb.AppendLine("protected override void OnPaint(PaintEventArgs e)");
             sb.AppendLine("{");
             sb.AppendLine("    base.OnPaint(e);");
-            sb.AppendLine();
-            sb.AppendLine("    if (_back != null)");
-            sb.AppendLine("        e.Graphics.DrawImageUnscaled(_back, 0, 0);");
-            sb.AppendLine();
-            sb.AppendLine("    string line1 = string.Format(\"F:{0} I:{1} PC:{2:X4} T:{3}\", Ppu.FrameCount, Runtime.InsCount, Runtime.LastPC, Runtime.TrapCount);");
-            sb.AppendLine("    string line2 = string.Format(\"CTRL:{0:X2} MASK:{1:X2} ST:{2:X2} VRAM:{3:X4}\", Ppu.Ctrl, Ppu.Mask, Ppu.Status, Ppu.VRamAddr);");
-            sb.AppendLine("    string line3 = string.Format(\"CPU:{0} NMI:{1}/{2} A:{3:X2} X:{4:X2} Y:{5:X2} SP:{6:X2} P:{7:X2}\", Runtime.CpuState, Runtime.NmiPending ? 1 : 0, Runtime.InNmi ? 1 : 0, Runtime.A, Runtime.X, Runtime.Y, Runtime.SP, Runtime.P);");
-            sb.AppendLine("    string line4 = string.Format(\"SND a:{0} v:{1}/{2}/{3}/{4} e:{5}\", Audio.DbgAlive & 0xFFFF, Audio.DbgV1, Audio.DbgV2, Audio.DbgVT, Audio.DbgVN, Audio.DbgWrErr);");
-            sb.AppendLine();
-            sb.AppendLine("    e.Graphics.FillRectangle(Brushes.Black, 0, 0, 256, 64);");
-            sb.AppendLine("    e.Graphics.DrawString(line1, SystemFonts.DefaultFont, Brushes.Yellow, 2, 2);");
-            sb.AppendLine("    e.Graphics.DrawString(line2, SystemFonts.DefaultFont, Brushes.Yellow, 2, 16);");
-            sb.AppendLine("    e.Graphics.DrawString(line3, SystemFonts.DefaultFont, Brushes.Yellow, 2, 30);");
-            sb.AppendLine("    e.Graphics.DrawString(line4, SystemFonts.DefaultFont, Brushes.Yellow, 2, 44);");
-            sb.AppendLine();
-            sb.AppendLine("    if (!string.IsNullOrEmpty(Runtime.LastError))");
-            sb.AppendLine("    {");
-            sb.AppendLine("        string msg = Runtime.LastError;");
-            sb.AppendLine("        if (msg.Length > 56) msg = msg.Substring(0, 56);");
-            sb.AppendLine();
-            sb.AppendLine("        e.Graphics.FillRectangle(Brushes.Black, 0, 222, 256, 18);");
-            sb.AppendLine("        e.Graphics.DrawString(msg, SystemFonts.DefaultFont, Brushes.Red, 2, 224);");
-            sb.AppendLine("    }");
+            sb.AppendLine("    Bitmap b = Volatile.Read(ref _front);");
+            sb.AppendLine("    if (b != null) e.Graphics.DrawImageUnscaled(b, 0, 0);");
             sb.AppendLine("}");
-
+            sb.AppendLine();
             sb.AppendLine("static void SetJoyKey(Keys k, bool down)");
             sb.AppendLine("{");
-            sb.AppendLine("    int b = KeyBit(k);");
-            sb.AppendLine("    if (b < 0) return;");
+            sb.AppendLine("    int b = KeyBit(k); if (b < 0) return;");
             sb.AppendLine("    if (down) Runtime.Joy1Buttons = (byte)(Runtime.Joy1Buttons | (1 << b));");
             sb.AppendLine("    else Runtime.Joy1Buttons = (byte)(Runtime.Joy1Buttons & ~(1 << b));");
             sb.AppendLine("}");
@@ -3720,17 +3993,15 @@ namespace NES2ILRecomp
             sb.AppendLine("}");
             sb.AppendLine("protected override void OnFormClosing(FormClosingEventArgs e)");
             sb.AppendLine("{");
+            sb.AppendLine("    _closing = true;");
+            sb.AppendLine("    if (_renderThread != null && _renderThread.IsAlive) _renderThread.Join(500);");
             sb.AppendLine("    base.OnFormClosing(e);");
             sb.AppendLine("    _timer.Stop();");
             sb.AppendLine("    Audio.TryStop();");
-            sb.AppendLine();
-            sb.AppendLine("    if (_back != null)");
-            sb.AppendLine("    {");
-            sb.AppendLine("        _back.Dispose();");
-            sb.AppendLine("        _back = null;");
-            sb.AppendLine("    }");
+            sb.AppendLine("    try { System.IO.File.WriteAllBytes(System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, Runtime.GameName + \".sav\"), Runtime.SaveRam); } catch { }");
+            sb.AppendLine("    if (_front != null) { _front.Dispose(); _front = null; }");
+            sb.AppendLine("    if (_work  != null) { _work.Dispose();  _work  = null; }");
             sb.AppendLine("}");
-
             sb.AppendLine("}");
         }
 
@@ -3840,7 +4111,10 @@ namespace NES2ILRecomp
 
         void EmitIndirectJump(StringBuilder sb, Instruction inst)
         {
-            Line(sb, "Runtime.DispatchTarget = Memory.Read16(0x" + inst.Operand.ToString("X4") + ");");
+            ushort ptr = inst.Operand;
+            ushort loAddr = ptr;
+            ushort hiAddr = (ushort)((ptr & 0xFF00) | ((ptr + 1) & 0x00FF));
+            Line(sb, "Runtime.DispatchTarget = (ushort)(Memory.Read(0x" + loAddr.ToString("X4") + ") | (Memory.Read(0x" + hiAddr.ToString("X4") + ") << 8));");
             Line(sb, "goto Dispatch;");
         }
 
